@@ -12,13 +12,13 @@ apuncli — gestor de apuntes de estudio desde la terminal
 
 Ejemplos rápidos:
   apuncli crear "Tema 4: árbol binario" -a "ED" -t "estructuras,arbols"
-  apuncli listar --asignatura ED
+  apuncli listar -a ED
   apuncli buscar "recursividad"
   apuncli ver 3
-  apuncli repasar --num 5
+  apuncli repasar -n 5
 
-Escribe 'apuncli AYUDA' (por ejemplo 'apuncli crear --help') para ver
-los detalles de cada comando.
+Añade --help a lo que uses para ver los detalles (por ejemplo,
+'apuncli crear --help').
 """
 
 EPILOGO = "Usa 'apuncli <comando> --help' para ver los detalles de cada comando."
