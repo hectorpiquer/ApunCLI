@@ -41,7 +41,7 @@ $ apuncli buscar "hijos"
 ## Instalación
 
 ```bash
-git clone https://github.com/TU_USUARIO/apuncli.git
+git clone https://github.com/hectorpiquer/ApunCLI.git
 cd apuncli
 pip install .
 ```
