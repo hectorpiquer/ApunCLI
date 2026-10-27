@@ -35,7 +35,7 @@ class TestMarkdown(unittest.TestCase):
             "\n"
             "Un árbol binario tiene dos hijos.\n"
         )
-        titulo, contenido, asignatura, etiquetas = formato.de_markdown(texto)
+        titulo, contenido, asignatura, etiquetas, recursos = formato.de_markdown(texto)
         self.assertEqual(titulo, "Tema 1")
         self.assertEqual(asignatura, "ED")
         self.assertEqual(etiquetas, ["temas", "examen"])
@@ -43,20 +43,20 @@ class TestMarkdown(unittest.TestCase):
 
     def test_de_markdown_sin_metadatos(self):
         texto = "# Apunte\n\nContenido suelto\ncon dos líneas.\n"
-        titulo, contenido, asignatura, etiquetas = formato.de_markdown(texto)
+        titulo, contenido, asignatura, etiquetas, recursos = formato.de_markdown(texto)
         self.assertEqual(titulo, "Apunte")
         self.assertEqual(asignatura, "")
         self.assertEqual(etiquetas, [])
         self.assertEqual(contenido, "Contenido suelto\ncon dos líneas.")
 
     def test_de_markdown_sin_titulo(self):
-        titulo, contenido, _, _ = formato.de_markdown("solo texto, sin cabecera")
+        titulo, contenido, _, _, _ = formato.de_markdown("solo texto, sin cabecera")
         self.assertEqual(titulo, "")
         self.assertEqual(contenido, "solo texto, sin cabecera")
 
     def test_contenido_con_marcas_no_se_confunde(self):
         texto = "# Tema\n\nasignatura: ED\n\nEl texto habla de asignatura: no debe comérselo.\n"
-        _, contenido, asignatura, _ = formato.de_markdown(texto)
+        _, contenido, asignatura, _, _ = formato.de_markdown(texto)
         self.assertEqual(asignatura, "ED")
         self.assertEqual(contenido, "El texto habla de asignatura: no debe comérselo.")
 
@@ -65,7 +65,7 @@ class TestMarkdown(unittest.TestCase):
             titulo="Tema 4", contenido="Línea 1\nLínea 2", asignatura="Matemáticas"
         )
         texto = formato.a_markdown(original, ["geometría"])
-        titulo, contenido, asignatura, etiquetas = formato.de_markdown(texto)
+        titulo, contenido, asignatura, etiquetas, recursos = formato.de_markdown(texto)
         self.assertEqual(titulo, "Tema 4")
         self.assertEqual(contenido, "Línea 1\nLínea 2")
         self.assertEqual(asignatura, "Matemáticas")
@@ -79,8 +79,8 @@ class TestDividirBloques(unittest.TestCase):
         texto = "# Uno\n\nasignatura: ED\n\nContenido 1\n\n# Dos\n\nContenido 2\n"
         bloques = _dividir_bloques_markdown(texto)
         self.assertEqual(len(bloques), 2)
-        titulo1, _, _, _ = formato.de_markdown(bloques[0])
-        titulo2, _, _, _ = formato.de_markdown(bloques[1])
+        titulo1, _, _, _, _ = formato.de_markdown(bloques[0])
+        titulo2, _, _, _, _ = formato.de_markdown(bloques[1])
         self.assertEqual(titulo1, "Uno")
         self.assertEqual(titulo2, "Dos")
 

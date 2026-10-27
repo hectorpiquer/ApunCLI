@@ -6,7 +6,7 @@ import sys
 import tempfile
 from typing import List, Optional
 
-from . import db, formato, ui
+from . import db, formato, recursos as recursos_mod, temario, testmotor, ui
 from .errores import ApuncliError
 
 
@@ -34,10 +34,19 @@ def cmd_crear(conexion, titulo: str, contenido: Optional[str], asignatura: str,
         )
 
     apunte_id = db.crear_apunte(conexion, titulo.strip(), cuerpo, asignatura.strip(), etiquetas)
+    _adjuntar_detectados(conexion, apunte_id, cuerpo)
     apunte = db.obtener_apunte(conexion, apunte_id)
     ui.titulo_de_seccion(f"✔ Apunte creado (id {apunte_id})")
     _imprimir_ficha(apunte, db.etiquetas_del_apunte(conexion, apunte_id))
     return apunte_id
+
+
+def _adjuntar_detectados(conexion, apunte_id: int, cuerpo: str) -> None:
+    """Guarda como recursos las URLs y ficheros que aparecen en el contenido."""
+    existentes = {r["url"] for r in db.recursos_del_apunte(conexion, apunte_id)}
+    for url, nombre in recursos_mod.detectar_en_texto(cuerpo):
+        if url not in existentes:
+            db.adjuntar_recurso(conexion, apunte_id, url, nombre)
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +83,15 @@ def cmd_listar(conexion, asignatura: Optional[str], etiqueta: Optional[str]) -> 
 def cmd_ver(conexion, apunte_id: int) -> None:
     apunte = _apunte_obligatorio(conexion, apunte_id)
     _imprimir_ficha(apunte, db.etiquetas_del_apunte(conexion, apunte_id), contenido=True)
+    recursos = db.recursos_del_apunte(conexion, apunte_id)
+    if recursos:
+        print()
+        print(ui.subrayado("  Recursos"))
+        for recurso in recursos:
+            tipo = recursos_mod.clasificar(recurso["url"])
+            nombre = recurso["nombre"] or recurso["url"]
+            print(f"    · {nombre}  ({tipo})")
+        print(ui.tenue(f"    Abre uno con: apuncli recurso abrir {recursos[0]['id']}"))
 
 
 def _imprimir_ficha(apunte, etiquetas: List[str], contenido: bool = False) -> None:
@@ -129,6 +147,8 @@ def cmd_editar(conexion, apunte_id: int, titulo: Optional[str], contenido: Optio
 
     db.editar_apunte(conexion, apunte_id, titulo=titulo, contenido=nuevo_contenido,
                      asignatura=asignatura, etiquetas=etiquetas)
+    if nuevo_contenido is not None:
+        _adjuntar_detectados(conexion, apunte_id, nuevo_contenido)
     apunte = db.obtener_apunte(conexion, apunte_id)
     ui.titulo_de_seccion(f"✔ Apunte actualizado (id {apunte_id})")
     _imprimir_ficha(apunte, db.etiquetas_del_apunte(conexion, apunte_id))
@@ -176,15 +196,21 @@ def cmd_abrir(conexion, apunte_id: int) -> None:
     try:
         descriptor, ruta = tempfile.mkstemp(prefix=f"apuncli-{apunte_id}-", suffix=".md")
         with os.fdopen(descriptor, "w", encoding="utf-8") as archivo:
-            archivo.write(formato.a_markdown(apunte, etiquetas))
+            archivo.write(formato.a_markdown(
+                apunte, etiquetas, db.recursos_del_apunte(conexion, apunte_id)))
         print(ui.tenue(f"Abriendo '{apunte['titulo']}' en el editor…"))
         ui.abrir_en_editor(ruta)
         with open(ruta, encoding="utf-8") as archivo:
-            titulo, contenido, asignatura, nuevas_etiquetas = formato.de_markdown(archivo.read())
+            titulo, contenido, asignatura, nuevas_etiquetas, nuevas_recursos = \
+                formato.de_markdown(archivo.read())
         if not titulo:
             raise ApuncliError("El fichero ha perdido el título; cambios no guardados.")
         db.editar_apunte(conexion, apunte_id, titulo=titulo, contenido=contenido,
                         asignatura=asignatura, etiquetas=nuevas_etiquetas)
+        _adjuntar_detectados(conexion, apunte_id, contenido)
+        for nombre, url in nuevas_recursos:
+            if url:
+                db.adjuntar_recurso(conexion, apunte_id, url, nombre)
         print(f"✔ Cambios guardados en el apunte [{apunte_id}].")
     finally:
         if ruta and os.path.exists(ruta):
@@ -199,9 +225,9 @@ def cmd_exportar(conexion, destino: Optional[str], asignatura: Optional[str],
                  etiqueta: Optional[str], todos: bool) -> None:
     if destino:
         apunte = _apunte_obligatorio(conexion, _parsear_id(destino))
-        sys.stdout.write(
-            formato.a_markdown(apunte, db.etiquetas_del_apunte(conexion, apunte["id"]))
-        )
+        sys.stdout.write(formato.a_markdown(
+            apunte, db.etiquetas_del_apunte(conexion, apunte["id"]),
+            db.recursos_del_apunte(conexion, apunte["id"])))
         return
     apuntes = db.listar_apuntes(conexion, asignatura=asignatura, etiqueta=etiqueta)
     if not apuntes and not (todos or asignatura or etiqueta):
@@ -213,7 +239,9 @@ def cmd_exportar(conexion, destino: Optional[str], asignatura: Optional[str],
         print("No hay apuntes que exportar.")
         return
     bloques = [
-        formato.a_markdown(apunte, db.etiquetas_del_apunte(conexion, apunte["id"]))
+        formato.a_markdown(
+            apunte, db.etiquetas_del_apunte(conexion, apunte["id"]),
+            db.recursos_del_apunte(conexion, apunte["id"]))
         for apunte in apuntes
     ]
     sys.stdout.write("\n".join(bloques) + "\n")
@@ -229,10 +257,15 @@ def cmd_importar(conexion, ruta_fichero: str) -> None:
     partes = _dividir_bloques_markdown(texto)
     creados = 0
     for bloque in partes:
-        titulo, contenido, asignatura, etiquetas = formato.de_markdown(bloque)
+        titulo, contenido, asignatura, etiquetas, recursos_md = formato.de_markdown(bloque)
         if not titulo:
             continue
-        db.crear_apunte(conexion, titulo, contenido, asignatura, etiquetas)
+        apunte_id = db.crear_apunte(conexion, titulo, contenido, asignatura, etiquetas)
+        _adjuntar_detectados(conexion, apunte_id, contenido)
+        existentes = {r["url"] for r in db.recursos_del_apunte(conexion, apunte_id)}
+        for nombre, url in recursos_md:
+            if url and url not in existentes:
+                db.adjuntar_recurso(conexion, apunte_id, url, nombre)
         creados += 1
     if creados == 0:
         raise ApuncliError("No se encontró ningún apunte con título '# Título' en el fichero.")
@@ -282,6 +315,105 @@ def cmd_repasar(conexion, asignatura: Optional[str], etiqueta: Optional[str],
         db.marcar_repasado(conexion, apunte["id"])
     print()
     print(ui.destacado("✔ Repaso terminado. ¡Bien hecho!"))
+
+
+# ---------------------------------------------------------------------------
+# Recursos (enlaces y ficheros adjuntos)
+# ---------------------------------------------------------------------------
+
+def cmd_recurso(conexion, accion: str, apunte_id: Optional[int],
+                recurso_id: Optional[int], url: Optional[str],
+                nombre: str) -> None:
+    if accion == "anadir":
+        if apunte_id is None or not url:
+            raise ApuncliError("Uso: apuncli recurso anadir <apunte> <url-o-fichero> [--nombre 'X']")
+        _apunte_obligatorio(conexion, apunte_id)
+        ruta = os.path.abspath(os.path.expanduser(url)) if not recursos_mod.es_url(url) else url
+        id_recurso = db.adjuntar_recurso(conexion, apunte_id, ruta,
+                                         nombre or recursos_mod.nombre_para(url))
+        print(f"✔ Recurso añadido (id {id_recurso}) al apunte {apunte_id}.")
+    elif accion == "abrir":
+        recurso = _recurso_obligatorio(conexion, recurso_id)
+        try:
+            recursos_mod.abrir_recurso(recurso["url"])
+        except FileNotFoundError as error:
+            raise ApuncliError(str(error))
+        print(f"✔ Abierto: {recurso['nombre'] or recurso['url']}")
+    elif accion == "borrar":
+        _recurso_obligatorio(conexion, recurso_id)
+        db.borrar_recurso(conexion, recurso_id)
+        print(f"✔ Recurso {recurso_id} borrado.")
+
+
+def _recurso_obligatorio(conexion, recurso_id: Optional[int]):
+    if recurso_id is None:
+        raise ApuncliError("Falta el id del recurso "
+                           "(los ids salen con 'apuncli recurso listar <apunte>')")
+    recurso = db.recurso(conexion, recurso_id)
+    if recurso is None:
+        raise ApuncliError(f"No existe el recurso {recurso_id}.")
+    return recurso
+
+
+def cmd_recurso_listar(conexion, apunte_id: int) -> None:
+    _apunte_obligatorio(conexion, apunte_id)
+    recursos = db.recursos_del_apunte(conexion, apunte_id)
+    ui.titulo_de_seccion(f"Recursos del apunte {apunte_id} ({len(recursos)})")
+    if not recursos:
+        print(ui.tenue("(ninguno). Añade uno: apuncli recurso anadir {} https://ejemplo.com".format(apunte_id)))
+        return
+    for recurso in recursos:
+        tipo = recursos_mod.clasificar(recurso["url"])
+        print(f"  {recurso['id']:>3}  {recurso['nombre'] or '-':<28} {recurso['url']}  ({tipo})")
+
+
+# ---------------------------------------------------------------------------
+# Temario
+# ---------------------------------------------------------------------------
+
+def cmd_temario(conexion, asignatura: Optional[str], etiqueta: Optional[str],
+                titulo: Optional[str]) -> None:
+    texto = temario.generar_temario(conexion, asignatura=asignatura,
+                                    etiqueta=etiqueta, titulo=titulo)
+    sys.stdout.write(texto)
+
+
+# ---------------------------------------------------------------------------
+# Test
+# ---------------------------------------------------------------------------
+
+def cmd_test(conexion, asignatura: Optional[str], etiqueta: Optional[str],
+             numero: int) -> None:
+    preguntas = testmotor.preparar_preguntas(conexion, asignatura=asignatura,
+                                             etiqueta=etiqueta, numero=numero)
+    print(ui.destacado(f"Test con {len(preguntas)} pregunta(s). "
+                       "Responde con tus palabras (Enter vacío para saltar, 'q' para salir)."))
+    correctas = 0
+    respondidas = 0
+    for i, pregunta in enumerate(preguntas, 1):
+        print()
+        print(ui.subrayado(f"─ Pregunta {i}/{len(preguntas)} · de '{pregunta['apunte']}' ─"))
+        print(ui.destacado(pregunta["pregunta"]))
+        try:
+            respuesta = input(ui.tenue("Tu respuesta: "))
+        except EOFError:
+            break
+        if respuesta.strip().lower() in ("q", "salir"):
+            break
+        respondidas += 1
+        if testmotor.es_correcta(respuesta, pregunta["respuesta"]):
+            correctas += 1
+            print(ui.destacado("✔ ¡Correcto!"))
+        else:
+            print(ui.tenue(f"✘ Respuesta esperada: {pregunta['respuesta']}"))
+        db.marcar_repasado(conexion, pregunta["apunte_id"])
+
+    print()
+    if respondidas:
+        nota = round(10 * correctas / respondidas, 1)
+        ui.titulo_de_seccion(f"Resultado: {correctas}/{respondidas} · nota {nota}/10")
+    else:
+        print("Test sin respuestas. ¡Otra vez otro día!")
 
 
 # ---------------------------------------------------------------------------

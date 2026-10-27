@@ -61,6 +61,14 @@ def inicializar(conexion: sqlite3.Connection) -> None:
             etiqueta_id INTEGER NOT NULL REFERENCES etiquetas(id) ON DELETE CASCADE,
             PRIMARY KEY (apunte_id, etiqueta_id)
         );
+
+        CREATE TABLE IF NOT EXISTS recursos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            apunte_id INTEGER NOT NULL REFERENCES apuntes(id) ON DELETE CASCADE,
+            nombre TEXT NOT NULL DEFAULT '',
+            url TEXT NOT NULL,
+            creado TEXT NOT NULL
+        );
         """
     )
     if FTS5_DISPONIBLE:
@@ -279,6 +287,47 @@ def marcar_repasado(conexion: sqlite3.Connection, apunte_id: int) -> None:
         (apunte_id,),
     )
     conexion.commit()
+
+
+# ---------------------------------------------------------------------------
+# Recursos (enlaces y ficheros adjuntos a un apunte)
+# ---------------------------------------------------------------------------
+
+def adjuntar_recurso(conexion: sqlite3.Connection, apunte_id: int,
+                     url: str, nombre: str = "") -> int:
+    cursor = conexion.execute(
+        "INSERT INTO recursos (apunte_id, nombre, url, creado) VALUES (?, ?, ?, ?)",
+        (apunte_id, nombre.strip(), url.strip(), ahora()),
+    )
+    conexion.commit()
+    return cursor.lastrowid
+
+
+def recursos_del_apunte(conexion: sqlite3.Connection, apunte_id: int) -> List[sqlite3.Row]:
+    return conexion.execute(
+        "SELECT * FROM recursos WHERE apunte_id = ? ORDER BY id", (apunte_id,)
+    ).fetchall()
+
+
+def recurso(conexion: sqlite3.Connection, recurso_id: int) -> Optional[sqlite3.Row]:
+    return conexion.execute("SELECT * FROM recursos WHERE id = ?", (recurso_id,)).fetchone()
+
+
+def borrar_recurso(conexion: sqlite3.Connection, recurso_id: int) -> bool:
+    cursor = conexion.execute("DELETE FROM recursos WHERE id = ?", (recurso_id,))
+    conexion.commit()
+    return cursor.rowcount > 0
+
+
+def recursos_de_apuntes(conexion: sqlite3.Connection,
+                        apunte_ids: List[int]) -> List[sqlite3.Row]:
+    if not apunte_ids:
+        return []
+    marcas = ",".join("?" for _ in apunte_ids)
+    return conexion.execute(
+        f"SELECT * FROM recursos WHERE apunte_id IN ({marcas}) ORDER BY id",
+        apunte_ids,
+    ).fetchall()
 
 
 def estadisticas(conexion: sqlite3.Connection) -> dict:

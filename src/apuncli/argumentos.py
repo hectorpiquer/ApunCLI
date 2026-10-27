@@ -4,7 +4,7 @@ import argparse
 import sqlite3
 import sys
 
-from . import comandos, db
+from . import comandos, db, ui
 from .errores import ApuncliError
 
 AYUDA_PRINCIPAL = """\
@@ -122,6 +122,42 @@ def crear_parser() -> argparse.ArgumentParser:
     p.add_argument("-t", "--etiqueta", help="repasar solo los de una etiqueta")
     p.add_argument("-n", "--num", type=int, default=5, help="cuántos repasar (por defecto 5)")
 
+    # test
+    p = sub.add_parser("test", help="hacerte un test a partir de tus apuntes",
+                       description="Busca preguntas escritas como '**Pregunta:** … "
+                                   "**Respuesta:** …' dentro de los apuntes y te las hace. "
+                                   "Corrige con tolerancia (ignora acentos y mayúsculas) y "
+                                   "te da la nota sobre 10.")
+    p.add_argument("-a", "--asignatura", help="solo de una asignatura")
+    p.add_argument("-t", "--etiqueta", help="solo de una etiqueta")
+    p.add_argument("-n", "--num", type=int, default=10, help="nº de preguntas (por defecto 10)")
+
+    # recurso
+    p = sub.add_parser("recurso", aliases=["rec"], help="gestionar enlaces y ficheros de un apunte",
+                       description="Adjunta y abre recursos (web, PDFs, imágenes, apuntes en "
+                                   "el disco). Las URLs y rutas que escribes en el contenido "
+                                   "se detectan y adjuntan solas.")
+    recursos = p.add_subparsers(dest="accion", metavar="ACCIÓN")
+    pr = recursos.add_parser("listar", help="listar los recursos de un apunte")
+    pr.add_argument("apunte", help="id del apunte")
+    pr = recursos.add_parser("anadir", help="añadir un recurso a un apunte")
+    pr.add_argument("apunte", help="id del apunte")
+    pr.add_argument("url", help="URL o ruta del fichero")
+    pr.add_argument("-n", "--nombre", default="", help="nombre visible (opcional)")
+    pr = recursos.add_parser("abrir", help="abrir un recurso (navegador o programa asociado)")
+    pr.add_argument("recurso", help="id del recurso")
+    pr = recursos.add_parser("borrar", help="borrar un recurso")
+    pr.add_argument("recurso", help="id del recurso")
+
+    # temario
+    p = sub.add_parser("temario", help="generar un temario/índice Markdown de tus apuntes",
+                       description="Crea un único documento Markdown con índice, enlaces a "
+                                   "cada apunte, recursos y estado de repaso. Perfecto para "
+                                   "imprimir, pasar a PDF o subir a GitHub.")
+    p.add_argument("-a", "--asignatura", help="solo los de una asignatura")
+    p.add_argument("-t", "--etiqueta", help="solo los de una etiqueta")
+    p.add_argument("-T", "--titulo", help="título del temario")
+
     # etiquetas
     sub.add_parser("etiquetas", aliases=["tags"], help="listar todas las etiquetas",
                    description="Muestra las etiquetas que existen.")
@@ -142,10 +178,6 @@ def ejecutar(argv=None) -> int:
     parser = crear_parser()
     args = parser.parse_args(argv)
 
-    if not args.comando:
-        parser.print_help()
-        return 0
-
     try:
         conexion = db.conectar()
     except sqlite3.Error as error:
@@ -154,6 +186,16 @@ def ejecutar(argv=None) -> int:
         return 1
 
     try:
+        if not args.comando:
+            if ui.terminal_interactiva():
+                try:
+                    with conexion:
+                        from . import interfaz
+                        return interfaz.menu_principal(conexion)
+                finally:
+                    sys.stdout.flush()
+            parser.print_help()
+            return 0
         with conexion:
             _despachar(conexion, args, parser)
         return 0
@@ -195,6 +237,24 @@ def _despachar(conexion, args, parser) -> None:
         comandos.cmd_importar(conexion, args.fichero)
     elif comando in ("repasar", "review"):
         comandos.cmd_repasar(conexion, args.asignatura, args.etiqueta, args.num)
+    elif comando == "test":
+        comandos.cmd_test(conexion, args.asignatura, args.etiqueta, args.num)
+    elif comando in ("recurso", "rec"):
+        if args.accion == "listar":
+            comandos.cmd_recurso_listar(conexion, comandos._parsear_id(args.apunte))
+        elif args.accion == "anadir":
+            comandos.cmd_recurso(conexion, "anadir", comandos._parsear_id(args.apunte),
+                                 None, args.url, args.nombre)
+        elif args.accion == "abrir":
+            comandos.cmd_recurso(conexion, "abrir", None,
+                                 comandos._parsear_id(args.recurso), None, "")
+        elif args.accion == "borrar":
+            comandos.cmd_recurso(conexion, "borrar", None,
+                                 comandos._parsear_id(args.recurso), None, "")
+        else:
+            parser.parse_args(["recurso", "--help"])
+    elif comando == "temario":
+        comandos.cmd_temario(conexion, args.asignatura, args.etiqueta, args.titulo)
     elif comando in ("etiquetas", "tags"):
         comandos.cmd_etiquetas(conexion)
     elif comando in ("asignaturas", "materias"):
