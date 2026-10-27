@@ -93,17 +93,22 @@ ningún comando.
 $ apuncli
 📚 apuncli — menú de estudio
 ¿Qué quieres hacer?
-  ❯ 📋  Ver todos mis apuntes
+  ❯ 📅  ¿Qué estudio hoy?
+    📋  Ver todos mis apuntes
     👀  Ver un apunte
     ➕  Crear un apunte nuevo
     ✏️   Editar un apunte
     🔎  Buscar texto
     🧠  Repasar (modo ficha)
-    📝  Hazme un test
+    📝  Hazme un test (autogenerado)
     🔗  Recursos de un apunte
     📚  Generar temario Markdown
     📊  Estadísticas
 ```
+
+Al **editar** desde el menú nunca borra tu contenido sin avisar: te pregunta
+si quieres añadir texto al final, escribir desde cero (con confirmación) o no
+tocarlo.
 
 (En tuberías o sin terminal real, `apuncli` muestra la ayuda de siempre.)
 
@@ -135,6 +140,7 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | `test`             | Test automático a partir de tus apuntes           | `apuncli test -t examen`             |
 | `recurso` (`rec`)  | Adjuntar/abrir enlaces y ficheros a un apunte     | `apuncli recurso anadir 3 https://…` |
 | `temario`          | Índice Markdown completo (para imprimir o PDF)    | `apuncli temario -a ED > temario.md` |
+| `hoy`              | Plan rápido: qué estudiar hoy                     | `apuncli hoy`                        |
 | `etiquetas`        | Ver todas las etiquetas                           | `apuncli etiquetas`                  |
 | `asignaturas`      | Ver las asignaturas existentes                    | `apuncli asignaturas`                |
 | `stats`            | Estadísticas de estudio                           | `apuncli stats`                      |
@@ -276,29 +282,47 @@ Cada apunte que ves suma una vez a su contador de repasos (lo ves en
 
 ## Test automático
 
-Escribe preguntas dentro de tus apuntes con este formato:
+`apuncli test` te prepara el examen **él solo**, sin que escribas nada: lee el
+contenido de tus apuntes y genera preguntas con reglas simples:
+
+- **Huecos** con términos que remarcaste en **negrita**: `La **pila** es LIFO` →
+  «Completa: La ______ es LIFO».
+- **Definiciones**: frases tipo `La pila es una estructura LIFO` → «¿qué es
+  pila?» con la respuesta exacta.
+- **Listas** bajo un apartado `## Operaciones` con 3+ items → «Nombra
+  elementos de «Operaciones»» con opción múltiple (a/b/c/d).
+
+Y si además escribes tus propias preguntas, mandan sobre las automáticas:
 
 ```markdown
-**Pregunta:** ¿Qué es una pila?
-**Respuesta:** Una estructura LIFO: el último en entrar es el primero en salir.
+**Pregunta:** ¿Qué coste tiene pop?
+**Respuesta:** O(1).
 ```
 
-Y `apuncli test` te las hace una a una, corrige con tolerancia (ignora
-acentos, mayúsculas y puntuación) y te da la **nota sobre 10**:
+Corrige con tolerancia (ignora mayúsculas, acentos y puntuación) y te da la
+**nota sobre 10**:
 
 ```bash
 $ apuncli test -a ED -t examen
-Test con 2 pregunta(s). Responde con tus palabras (Enter vacío para saltar, 'q' para salir).
+Test con 3 pregunta(s). Responde con tus palabras (Enter vacío para saltar, 'q' para salir).
 
-─ Pregunta 1/2 · de 'Tema 3: pilas y colas' ─
-¿Qué es una pila?
-Tu respuesta: una estructura lifo
+─ Pregunta 1/3 · de 'Tema 3: pilas y colas' ─
+¿Qué coste tiene pop?
+Tu respuesta: O(1)
 ✔ ¡Correcto!
 ...
-Resultado: 2/2 · nota 10.0/10
+Resultado: 3/3 · nota 10.0/10
 ```
 
-Cada pregunta que respondes cuenta también como repaso del apunte.
+`apuncli test --auto` fuerza solo las generadas. Cada respuesta cuenta también
+como repaso del apunte. Truco para más preguntas: escribe tus apuntes con
+definiciones claras, términos en negrita y listas; el test mejorará solo.
+
+## ¿Qué estudio hoy?
+
+`apuncli hoy` (o la primera opción del menú) te dice de un vistazo qué tienes
+sin repasar, qué apuntes tienen preguntas para test y cuáles tocaste hace poco,
+con una sugerencia de comando para ponerte.
 
 ## Temario
 

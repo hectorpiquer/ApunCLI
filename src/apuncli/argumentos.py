@@ -131,6 +131,8 @@ def crear_parser() -> argparse.ArgumentParser:
     p.add_argument("-a", "--asignatura", help="solo de una asignatura")
     p.add_argument("-t", "--etiqueta", help="solo de una etiqueta")
     p.add_argument("-n", "--num", type=int, default=10, help="nº de preguntas (por defecto 10)")
+    p.add_argument("--auto", action="store_true",
+                   help="solo preguntas generadas automáticamente (ignora las escritas a mano)")
 
     # recurso
     p = sub.add_parser("recurso", aliases=["rec"], help="gestionar enlaces y ficheros de un apunte",
@@ -170,6 +172,11 @@ def crear_parser() -> argparse.ArgumentParser:
     sub.add_parser("stats", help="ver estadísticas de estudio",
                    description="Resumen: total de apuntes, palabras, repasos y desglose "
                                "por asignatura.")
+
+    # hoy
+    sub.add_parser("hoy", help="plan rápido de qué estudiar hoy",
+                   description="Te dice qué apuntes no has repasado aún, cuáles tienen "
+                               "preguntas para test y cuáles tocaste hace poco.")
 
     return parser
 
@@ -238,7 +245,7 @@ def _despachar(conexion, args, parser) -> None:
     elif comando in ("repasar", "review"):
         comandos.cmd_repasar(conexion, args.asignatura, args.etiqueta, args.num)
     elif comando == "test":
-        comandos.cmd_test(conexion, args.asignatura, args.etiqueta, args.num)
+        comandos.cmd_test(conexion, args.asignatura, args.etiqueta, args.num, args.auto)
     elif comando in ("recurso", "rec"):
         if args.accion == "listar":
             comandos.cmd_recurso_listar(conexion, comandos._parsear_id(args.apunte))
@@ -261,5 +268,7 @@ def _despachar(conexion, args, parser) -> None:
         comandos.cmd_asignaturas(conexion)
     elif comando == "stats":
         comandos.cmd_stats(conexion)
+    elif comando == "hoy":
+        comandos.cmd_hoy(conexion)
     else:
         parser.print_help()

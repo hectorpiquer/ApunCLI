@@ -100,6 +100,23 @@ def leer_multilinea() -> str:
     return "\n".join(lineas).strip()
 
 
+def leer_bloque(fin: str = ".") -> str:
+    """Lee varias líneas hasta escribir una línea con solo 'fin' (o Ctrl+D).
+
+    Más fiable que Ctrl+D en terminales con modo crudo.
+    """
+    lineas = []
+    while True:
+        try:
+            linea = input()
+        except EOFError:
+            break
+        if linea.strip() == fin:
+            break
+        lineas.append(linea)
+    return "\n".join(lineas).strip()
+
+
 # ---------------------------------------------------------------------------
 # Selector con flechas (menús interactivos de la TUI)
 # ---------------------------------------------------------------------------

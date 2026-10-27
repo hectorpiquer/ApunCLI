@@ -5,25 +5,30 @@ Usa solo la librería estándar: la navegación con flechas vive en ui.seleccion
 
 import sys
 
-from . import argumentos, comandos, db, formato, ui
+from . import comandos, db, formato, ui
 from .errores import ApuncliError
 from .ui import SeleccionCancelada
 
 ACCIONES = [
+    ("📅  ¿Qué estudio hoy?", "hoy"),
     ("📋  Ver todos mis apuntes", "listar"),
     ("👀  Ver un apunte", "ver"),
     ("➕  Crear un apunte nuevo", "crear"),
     ("✏️   Editar un apunte", "editar"),
     ("🔎  Buscar texto", "buscar"),
     ("🧠  Repasar (modo ficha)", "repasar"),
-    ("📝  Hazme un test", "test"),
+    ("📝  Hazme un test (autogenerado)", "test"),
     ("🔗  Recursos de un apunte", "recurso"),
     ("📚  Generar temario Markdown", "temario"),
     ("📊  Estadísticas", "stats"),
     ("🏷️   Ver etiquetas", "etiquetas"),
     ("📦  Exportar todo a Markdown", "exportar"),
-    ("🚪  Salir", "salir"),
+    ("🚪  Salir del programa", "salir"),
 ]
+
+
+class SalirDelMenu(Exception):
+    """El usuario ha elegido la opción de salir del menú."""
 
 
 def menu_principal(conexion) -> int:
@@ -38,6 +43,9 @@ def menu_principal(conexion) -> int:
             return 0
 
         accion = ACCIONES[indice][1]
+        if accion == "salir":
+            print("\n¡Hasta la próxima!")
+            return 0
         try:
             _ejecutar(conexion, accion)
         except ApuncliError as error:
@@ -50,8 +58,8 @@ def menu_principal(conexion) -> int:
 
 
 def _ejecutar(conexion, accion: str) -> None:
-    if accion == "salir":
-        raise SeleccionCancelada()
+    if accion == "hoy":
+        comandos.cmd_hoy(conexion)
     elif accion == "listar":
         comandos.cmd_listar(conexion, None, None)
     elif accion == "ver":
@@ -62,31 +70,20 @@ def _ejecutar(conexion, accion: str) -> None:
         if not titulo.strip():
             raise ApuncliError("Sin título, no creo nada.")
         asignatura = ui.pedir_texto("Asignatura (opcional): ")
-        etiquetas = [e for e in ui.pedir_texto("Etiquetas separadas por comas (opcional): ").split(",") if e.strip()]
-        cuerpo = ui.leer_multilinea()
+        etiquetas = [e for e in ui.pedir_texto(
+            "Etiquetas separadas por comas (opcional): ").split(",") if e.strip()]
+        print(ui.tenue("Escribe el contenido (termina con una línea con solo '.'):"))
+        cuerpo = ui.leer_bloque()
         comandos.cmd_crear(conexion, titulo, cuerpo, asignatura, etiquetas, False, False)
     elif accion == "editar":
-        apunte = _elegir_apunte(conexion, "Elige el apunte que editar")
-        print(ui.tenue(f"Vas a editar [{apunte['id']}] {apunte['titulo']}"))
-        titulo = ui.pedir_texto("Nuevo título (Enter para mantener): ").strip()
-        asignatura = ui.pedir_texto("Nueva asignatura (Enter para mantener): ").strip()
-        etiquetas_raw = ui.pedir_texto("Nuevas etiquetas separadas por comas (Enter para mantener): ")
-        etiquetas = [e.strip().lower() for e in etiquetas_raw.split(",") if e.strip()] or None
-        contenido_actual = (apunte["contenido"] or "").strip()
-        nuevo = ui.leer_multilinea() if sys.stdin.isatty() else ""
-        if not nuevo:
-            print(ui.tenue("Contenido sin cambios."))
-            nuevo = None
-        comandos.cmd_editar(conexion, apunte["id"],
-                            titulo or None, nuevo,
-                            asignatura or None, etiquetas, False, False, False)
+        _editar(conexion)
     elif accion == "buscar":
         consulta = ui.pedir_texto("\n¿Qué buscas? ")
         comandos.cmd_buscar(conexion, consulta)
     elif accion == "repasar":
         comandos.cmd_repasar(conexion, None, None, 5)
     elif accion == "test":
-        comandos.cmd_test(conexion, None, None, 10)
+        comandos.cmd_test(conexion, None, None, 10, False)
     elif accion == "recurso":
         apunte = _elegir_apunte(conexion, "Elige el apunte")
         comandos.cmd_recurso_listar(conexion, apunte["id"])
@@ -113,6 +110,44 @@ def _ejecutar(conexion, accion: str) -> None:
             print(f"✔ Guardado en {archivo}")
         else:
             sys.stdout.write(texto + "\n")
+
+
+def _editar(conexion) -> None:
+    """Edición desde el menú: nunca sustituye contenido sin preguntar."""
+    apunte = _elegir_apunte(conexion, "Elige el apunte que editar")
+    print(ui.tenue(f"\nVas a editar [{apunte['id']}] {apunte['titulo']}"))
+
+    opciones_contenido = ["➕ Añadir texto al final (lo de arriba se conserva)",
+                          "✏️  Escribir el contenido nuevo desde cero",
+                          "↩️  No tocar el contenido"]
+    indice = ui.seleccionar("¿Qué hacemos con el contenido?", opciones_contenido)
+
+    nuevo_contenido = None
+    if indice == 0:
+        print(ui.tenue("Escribe el texto a añadir (termina con una línea con solo '.'):"))
+        anadido = ui.leer_bloque()
+        if anadido:
+            anterior = (apunte["contenido"] or "").strip()
+            nuevo_contenido = (anterior + "\n\n" + anadido).strip()
+    elif indice == 1:
+        if ui.confirmar("⚠️  Esto BORRA el contenido actual. ¿Continuar?"):
+            print(ui.tenue("Escribe el contenido nuevo (termina con una línea con solo '.'):"))
+            nuevo_contenido = ui.leer_bloque()
+        else:
+            print(ui.tenue("Contenido conservado."))
+
+    titulo = ui.pedir_texto("Nuevo título (Enter para mantener): ").strip()
+    asignatura = ui.pedir_texto("Nueva asignatura (Enter para mantener): ").strip()
+    etiquetas_raw = ui.pedir_texto(
+        "Nuevas etiquetas separadas por comas (Enter para mantener): ")
+    etiquetas = [e.strip().lower() for e in etiquetas_raw.split(",") if e.strip()] or None
+
+    if titulo or asignatura or etiquetas or nuevo_contenido is not None:
+        comandos.cmd_editar(conexion, apunte["id"],
+                            titulo or None, nuevo_contenido,
+                            asignatura or None, etiquetas, False, False, False)
+    else:
+        print(ui.tenue("No has cambiado nada."))
 
 
 def _elegir_apunte(conexion, mensaje: str):

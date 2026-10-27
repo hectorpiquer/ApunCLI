@@ -1,6 +1,7 @@
 """Implementación de los comandos de apuncli."""
 
 import os
+import re
 import sqlite3
 import sys
 import tempfile
@@ -383,17 +384,24 @@ def cmd_temario(conexion, asignatura: Optional[str], etiqueta: Optional[str],
 # ---------------------------------------------------------------------------
 
 def cmd_test(conexion, asignatura: Optional[str], etiqueta: Optional[str],
-             numero: int) -> None:
+             numero: int, automaticas: bool) -> None:
     preguntas = testmotor.preparar_preguntas(conexion, asignatura=asignatura,
-                                             etiqueta=etiqueta, numero=numero)
+                                             etiqueta=etiqueta, numero=numero,
+                                             solo_automaticas=automaticas)
     print(ui.destacado(f"Test con {len(preguntas)} pregunta(s). "
                        "Responde con tus palabras (Enter vacío para saltar, 'q' para salir)."))
     correctas = 0
     respondidas = 0
+    falladas = []
     for i, pregunta in enumerate(preguntas, 1):
         print()
         print(ui.subrayado(f"─ Pregunta {i}/{len(preguntas)} · de '{pregunta['apunte']}' ─"))
         print(ui.destacado(pregunta["pregunta"]))
+        if pregunta.get("opciones"):
+            letras = "abcd"
+            for letra, opcion in zip(letras, pregunta["opciones"]):
+                print(f"   {letra}) {opcion}")
+            print(ui.tenue("   (responde con la letra, o escribe tu respuesta)"))
         try:
             respuesta = input(ui.tenue("Tu respuesta: "))
         except EOFError:
@@ -401,10 +409,12 @@ def cmd_test(conexion, asignatura: Optional[str], etiqueta: Optional[str],
         if respuesta.strip().lower() in ("q", "salir"):
             break
         respondidas += 1
-        if testmotor.es_correcta(respuesta, pregunta["respuesta"]):
+        acertada = _corregir_pregunta(respuesta, pregunta)
+        if acertada:
             correctas += 1
             print(ui.destacado("✔ ¡Correcto!"))
         else:
+            falladas.append(pregunta)
             print(ui.tenue(f"✘ Respuesta esperada: {pregunta['respuesta']}"))
         db.marcar_repasado(conexion, pregunta["apunte_id"])
 
@@ -412,8 +422,20 @@ def cmd_test(conexion, asignatura: Optional[str], etiqueta: Optional[str],
     if respondidas:
         nota = round(10 * correctas / respondidas, 1)
         ui.titulo_de_seccion(f"Resultado: {correctas}/{respondidas} · nota {nota}/10")
+        if falladas:
+            ui.tenue(f"Has fallado {len(falladas)}: repasálias con 'apuncli repasar'.")
     else:
         print("Test sin respuestas. ¡Otra vez otro día!")
+
+
+def _corregir_pregunta(respuesta: str, pregunta: dict) -> bool:
+    respuesta = respuesta.strip()
+    opciones = pregunta.get("opciones") or []
+    if opciones and re.fullmatch(r"[a-dA-D]", respuesta):
+        eleccion = opciones["abcd".index(respuesta.lower())]
+        return testmotor.es_correcta(eleccion, pregunta["respuesta"]) or \
+            eleccion in pregunta["respuesta"]
+    return testmotor.es_correcta(respuesta, pregunta["respuesta"])
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +470,40 @@ def cmd_stats(conexion) -> None:
         print(f"    {asignatura:<20} {cantidad}")
     if not datos["por_asignatura"]:
         print(ui.tenue("    (aún no hay apuntes)"))
+
+
+def cmd_hoy(conexion) -> None:
+    """Plan rápido de qué estudiar hoy."""
+    apuntes = db.listar_apuntes(conexion)
+    ui.titulo_de_seccion("📅 Tu plan de hoy")
+    if not apuntes:
+        print("  No tienes apuntes todavía. Empieza con: apuncli crear 'Tema 1'")
+        return
+
+    sin_repasar = [a for a in apuntes if a["veces_repasado"] == 0]
+    recientes = sorted(apuntes, key=lambda a: a["modificado"], reverse=True)[:3]
+    con_recuerdos = [a for a in apuntes
+                     if testmotor.preguntas_manuales(a["contenido"])]
+
+    print()
+    if sin_repasar:
+        nombres = ", ".join(f"[{a['id']}] {a['titulo']}" for a in sin_repasar[:5])
+        print(f"  🔴 Todavía no repasados ({len(sin_repasar)}): {nombres}")
+    else:
+        print("  ✅ Lo tienes todo repasado al menos una vez. ¡Bien!")
+
+    if con_recuerdos:
+        print(f"  📝 Con preguntas para test: {len(con_recuerdos)} apuntes. "
+              "Prueba: apuncli test")
+
+    if recientes:
+        print("  🆕 Recientes/actualizados:")
+        for apunte in recientes:
+            print(f"     [{apunte['id']}] {apunte['titulo']} "
+                  f"({apunte['asignatura'] or '—'}) · modificado {apunte['modificado']}")
+
+    print()
+    print("  Sugerencia: " + ("apuncli repasar -n 5" if sin_repasar else "apuncli test"))
 
 
 # ---------------------------------------------------------------------------

@@ -89,7 +89,7 @@ class TestTemario(Base):
 
 
 class TestTestAutomatico(Base):
-    def test_extrae_preguntas(self):
+    def test_extrae_preguntas_manuales(self):
         contenido = ("Tema pilas.\n"
                      "**Pregunta:** ¿Qué es una pila?\n"
                      "**Respuesta:** Una estructura LIFO.\n"
@@ -97,8 +97,23 @@ class TestTestAutomatico(Base):
                      "**Respuesta:** FIFO.")
         db.crear_apunte(self.conexion, "Tema", contenido, "ED")
         preguntas = testmotor.preparar_preguntas(self.conexion)
-        self.assertEqual(len(preguntas), 2)
-        self.assertEqual(preguntas[0]["pregunta"], "¿Qué es una pila?")
+        manuales = [p for p in preguntas if p["tipo"] == testmotor._MANUAL_CLAVE]
+        self.assertEqual(len(manuales), 2)
+
+    def test_genera_desde_definiciones(self):
+        contenido = "La pila es una estructura LIFO con push y pop."
+        db.crear_apunte(self.conexion, "Tema pilas", contenido, "ED")
+        preguntas = testmotor.preparar_preguntas(self.conexion, solo_automaticas=True)
+        self.assertGreaterEqual(len(preguntas), 1)
+        tipo = preguntas[0]["tipo"]
+        self.assertIn(tipo, ("definicion", "hueco"))
+
+    def test_genera_desde_listas(self):
+        contenido = ("## Recorridos\n"
+                     "- inorden\n- preorden\n- postorden\n- por niveles")
+        db.crear_apunte(self.conexion, "Árboles", contenido, "ED")
+        preguntas = testmotor.preparar_preguntas(self.conexion, solo_automaticas=True)
+        self.assertTrue(any(p["tipo"] == "lista" for p in preguntas))
 
     def test_sin_preguntas_falla(self):
         db.crear_apunte(self.conexion, "A", "sin bloques de pregunta")
