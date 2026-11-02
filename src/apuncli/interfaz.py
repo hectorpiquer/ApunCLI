@@ -19,6 +19,7 @@ ACCIONES = [
     ("🧠  Repasar (modo ficha)", "repasar"),
     ("📝  Hazme un test (autogenerado)", "test"),
     ("🔗  Recursos de un apunte", "recurso"),
+    ("🧹  Borrar apuntes de una asignatura", "limpiar"),
     ("📚  Generar temario Markdown", "temario"),
     ("📊  Estadísticas", "stats"),
     ("🏷️   Ver etiquetas", "etiquetas"),
@@ -78,6 +79,8 @@ def _ejecutar(conexion, accion: str) -> None:
         comandos.cmd_crear(conexion, titulo, cuerpo, asignatura, etiquetas, False, False)
     elif accion == "editar":
         _editar(conexion)
+    elif accion == "limpiar":
+        _limpiar(conexion)
     elif accion == "buscar":
         consulta = ui.pedir_texto("\n¿Qué buscas? ")
         comandos.cmd_buscar(conexion, consulta)
@@ -157,6 +160,32 @@ def _editar(conexion) -> None:
                             asignatura or None, etiquetas, False, False, False)
     else:
         print(ui.tenue("No has cambiado nada."))
+
+
+def _limpiar(conexion) -> None:
+    """Borrar en bloque, elegido con filtros existentes (nada tecleado)."""
+    asignaturas = db.todas_las_asignaturas(conexion)
+    etiquetas = db.todas_las_etiquetas(conexion)
+    opciones = ([f"asignatura: {a}" for a in asignaturas] +
+                [f"etiqueta: {e}" for e in etiquetas])
+    if not opciones:
+        raise ApuncliError("No tienes asignaturas ni etiquetas con apuntes.")
+    indice = ui.seleccionar("¿Qué grupo quieres borrar?", opciones)
+    eleccion = opciones[indice]
+    if eleccion.startswith("asignatura:"):
+        filtro = dict(asignatura=eleccion.split(": ", 1)[1])
+    else:
+        filtro = dict(etiqueta=eleccion.split(": ", 1)[1])
+    apuntes = db.listar_apuntes(conexion, **filtro)
+    print(f"Se borrarán {len(apuntes)} apuntes:")
+    for apunte in apuntes:
+        print(f"  [{apunte['id']}] {apunte['titulo']}")
+    if not ui.confirmar("¿Seguro que quieres borrarlos todos?"):
+        print("Cancelado.")
+        return
+    for apunte in apuntes:
+        db.borrar_apunte(conexion, apunte["id"])
+    print(f"✔ {len(apuntes)} apuntes borrados.")
 
 
 def _elegir_apunte(conexion, mensaje: str):

@@ -186,6 +186,28 @@ def cmd_borrar(conexion, apunte_id: int, si: bool) -> None:
     print(f"✔ Apunte [{apunte_id}] borrado.")
 
 
+def cmd_limpiar(conexion, asignatura: Optional[str],
+                etiqueta: Optional[str], si: bool) -> None:
+    """Borra en bloque los apuntes que coincidan con los filtros."""
+    if not asignatura and not etiqueta:
+        raise ApuncliError("Indica un filtro: -a ASIGNATURA o -t ETIQUETA. "
+                           "Ejemplo: apuncli limpiar -t sin-usar")
+    apuntes = db.listar_apuntes(conexion, asignatura=asignatura, etiqueta=etiqueta)
+    if not apuntes:
+        print("No hay apuntes que coincidan con el filtro.")
+        return
+    nombres = ", ".join(f"[{a['id']}] {a['titulo']}" for a in apuntes[:8])
+    sufijo = "…" if len(apuntes) > 8 else ""
+    if not si:
+        print(f"Vas a borrar {len(apuntes)} apuntes: {nombres}{sufijo}")
+        if not ui.confirmar("¿Borrarlos todos?"):
+            print("Cancelado.")
+            return
+    for apunte in apuntes:
+        db.borrar_apunte(conexion, apunte["id"])
+    print(f"✔ {len(apuntes)} apuntes borrados.")
+
+
 # ---------------------------------------------------------------------------
 # Abrir en editor
 # ---------------------------------------------------------------------------

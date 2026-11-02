@@ -93,6 +93,14 @@ def crear_parser() -> argparse.ArgumentParser:
     p.add_argument("id", help="id del apunte")
     p.add_argument("--si", action="store_true", help="no pedir confirmación")
 
+    # limpiar
+    p = sub.add_parser("limpiar", help="borrar en bloque apuntes por filtro",
+                       description="Borra todos los apuntes de una asignatura o etiqueta. "
+                                   "Muestra la lista y pide confirmación salvo con --si.")
+    p.add_argument("-a", "--asignatura", help="asignatura a borrar")
+    p.add_argument("-t", "--etiqueta", help="etiqueta a borrar")
+    p.add_argument("--si", action="store_true", help="no pedir confirmación")
+
     # abrir
     p = sub.add_parser("abrir", aliases=["open"], help="abrir un apunte en el editor",
                        description="Abre el apunte en el editor configurado en $EDITOR "
@@ -251,6 +259,8 @@ def _despachar(conexion, args, parser) -> None:
                             args.etiquetas, args.editor, args.anadir, args.stdin)
     elif comando in ("borrar", "rm"):
         comandos.cmd_borrar(conexion, comandos._parsear_id(args.id), args.si)
+    elif comando == "limpiar":
+        comandos.cmd_limpiar(conexion, args.asignatura, args.etiqueta, args.si)
     elif comando in ("abrir", "open"):
         comandos.cmd_abrir(conexion, comandos._parsear_id(args.id))
     elif comando == "exportar":

@@ -77,6 +77,20 @@ class TestCLI(unittest.TestCase):
         codigo, _ = self.ejecutar("ver", "1")
         self.assertEqual(codigo, 1)
 
+    def test_limpiar_requiere_filtro(self):
+        codigo, _ = self.ejecutar("limpiar")
+        self.assertEqual(codigo, 1)
+
+    def test_limpiar_borra_por_etiqueta(self):
+        self.ejecutar("crear", "X1", "-c", "x", "-t", "basura")
+        self.ejecutar("crear", "X2", "-c", "x", "-t", "basura")
+        self.ejecutar("crear", "X3", "-c", "x", "-t", "oro")
+        codigo, _ = self.ejecutar("limpiar", "-t", "basura", "--si")
+        self.assertEqual(codigo, 0)
+        _, salida = self.ejecutar("listar")
+        self.assertIn("X3", salida)
+        self.assertNotIn("X1", salida)
+
     def test_stats(self):
         self.ejecutar("crear", "A", "-c", "una palabra más", "-a", "ED")
         codigo, salida = self.ejecutar("stats")

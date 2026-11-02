@@ -137,6 +137,7 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | `buscar`           | Buscar por texto en título y contenido            | `apuncli buscar "punteros"`          |
 | `editar`           | Cambiar título, contenido, asignatura o etiquetas | `apuncli editar 3 -T "Nuevo título"` |
 | `borrar` (`rm`)    | Borrar un apunte (pide confirmación)              | `apuncli borrar 3`                   |
+| `limpiar`          | Borrar en bloque una asignatura o etiqueta        | `apuncli limpiar -t sin-usar`        |
 | `abrir`            | Abrir un apunte en tu editor (`$EDITOR`)          | `apuncli abrir 3`                    |
 | `exportar`         | Exportar a Markdown (salida estándar)             | `apuncli exportar --todos > apuntes.md` |
 | `importar`         | Importar desde un Markdown                        | `apuncli importar apuntes.md`        |
@@ -194,13 +195,16 @@ export EDITOR=nano   # (o vim, code, etc.)
 apuncli abrir 5
 ```
 
-### `borrar`
+### `borrar` y `limpiar`
 
-Pide confirmación salvo que pases `--si`:
+`borrar` pide confirmación salvo que pases `--si`. `limpiar` borra en bloque
+todos los apuntes de una asignatura o etiqueta, enseñando antes la lista:
 
 ```bash
-apuncli borrar 5        # pregunta antes de borrar
-apuncli borrar 5 --si   # sin preguntas
+apuncli borrar 5                 # pregunta antes
+apuncli borrar 5 --si            # sin preguntas
+apuncli limpiar -t sin-usar     # borra todos los apuntes con esa etiqueta
+apuncli limpiar -a "Asignatura vieja"
 ```
 
 ## Ejemplos de uso real
@@ -225,6 +229,10 @@ apuncli repasar -a ED -n 3
 
 # Viernes: estadísticas
 apuncli stats
+
+# Sábado: organizar (borrar en bloque lo viejo y copias de seguridad)
+apuncli limpiar -t apuntes-antiguos
+apuncli respaldo hacer
 ```
 
 ## Exportar e importar (Markdown)
