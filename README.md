@@ -32,8 +32,12 @@ $ apuncli buscar "hijos"
 - [Modo repaso](#modo-repaso)
 - [Test automático](#test-automático)
 - [Temario](#temario)
+- [¿Qué estudio hoy?](#qué-estudio-hoy)
+- [Copia de seguridad](#copia-de-seguridad)
+- [Autocompletado con TAB](#autocompletado-con-tab)
 - [Variables de entorno](#variables-de-entorno)
 - [Estructura del proyecto](#estructura-del-proyecto)
+- [Guía para desarrollar](#guía-para-desarrollar-o-ampliar-el-proyecto)
 - [Tests](#tests)
 - [Licencia](#licencia)
 
@@ -144,6 +148,8 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | `etiquetas`        | Ver todas las etiquetas                           | `apuncli etiquetas`                  |
 | `asignaturas`      | Ver las asignaturas existentes                    | `apuncli asignaturas`                |
 | `stats`            | Estadísticas de estudio                           | `apuncli stats`                      |
+| `respaldo` (`backup`) | Copia de seguridad y restauración               | `apuncli respaldo hacer`             |
+| `completar`        | Configurar el autocompletado (TAB)                | `eval "$(apuncli completar)"`         |
 
 Todos los comandos aceptan `--help` para ver sus opciones, por ejemplo
 `apuncli crear --help`.
@@ -324,6 +330,28 @@ definiciones claras, términos en negrita y listas; el test mejorará solo.
 sin repasar, qué apuntes tienen preguntas para test y cuáles tocaste hace poco,
 con una sugerencia de comando para ponerte.
 
+## Copia de seguridad
+
+Tus apuntes solo viven en un fichero (`~/.apuncli/apuncli.db`), así que
+conviene tener red de seguridad:
+
+```bash
+apuncli respaldo hacer     # copia de seguridad ahora (junto a la base de datos)
+apuncli respaldo listar    # ver las copias que tienes
+apuncli respaldo restaurar # restaurar la copia más reciente (pregunta antes)
+```
+
+## Autocompletado con TAB
+
+Añade esta línea a tu `~/.bashrc` y reinicia la terminal:
+
+```bash
+eval "$(apuncli completar)"
+```
+
+A partir de ahí, el TAB autocompleta comandos, ids de apuntes (`apuncli ver 9<TAB>`)
+y los valores de `-a`/`-t` con tus asignaturas y etiquetas reales.
+
 ## Temario
 
 `apuncli temario` genera un **único documento Markdown** con índice, enlaces
@@ -382,6 +410,35 @@ La separación es la clásica en tres capas: **datos** (`db.py`),
 **interfaz de línea de órdenes** (`argumentos.py` + `comandos.py`). Así es
 fácil de entender, de probar y de ampliar: añadir un comando nuevo es escribir
 un `cmd_...` en `comandos.py` y registrarlo en `argumentos.py`.
+
+## Guía para desarrollar (o ampliar el proyecto)
+
+Si quieres tocar el código (o proponer una función nueva):
+
+1. `git clone` tu repositorio y `cd apuncli`.
+2. Instala en modo editable o ejecuta directo: `pip install -e .` o bien
+   `PYTHONPATH=src python3 -m apuncli ...`.
+3. Los tests son tu red de seguridad: **ejecuta siempre antes y después de
+   tocar nada**:
+
+   ```bash
+   python3 -m unittest discover -s tests
+   ```
+
+4. ¿Nuevo comando? La receta:
+   - define la opción en `argumentos.py` (`sub.add_parser(...)`,
+     `p.add_argument(...)`);
+   - escribe la lógica en `comandos.py` (`def cmd_...`) apoyándote en `db.py`;
+   - despachalo en `_despachar()`;
+   - añade un test en `tests/` (mira `test_cli.py` para copiar el patrón);
+   - si debe estar en el menú, añade su línea en `interfaz.py` (lista
+     `ACCIONES` y su rama en `_ejecutar`).
+5. ¿Cambio en la base de datos? Añade la tabla/columna en `db.inicializar()`
+   (usa `CREATE TABLE IF NOT EXISTS` para no romper bases de datos viejas) y
+   prueba a abrir una base antigua con el código nuevo.
+6. Estilo: comentarios y strings de cara al usuario en español; ids y
+   funciones en snake_case; errores de usuario = `ApuncliError` (el CLI los
+   imprime en rojo y devuelve código 1).
 
 ## Tests
 
