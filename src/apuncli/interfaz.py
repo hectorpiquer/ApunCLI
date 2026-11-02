@@ -23,6 +23,7 @@ ACCIONES = [
     ("📊  Estadísticas", "stats"),
     ("🏷️   Ver etiquetas", "etiquetas"),
     ("📦  Exportar todo a Markdown", "exportar"),
+    ("💾  Copia de seguridad", "respaldo"),
     ("🚪  Salir del programa", "salir"),
 ]
 
@@ -110,6 +111,14 @@ def _ejecutar(conexion, accion: str) -> None:
             print(f"✔ Guardado en {archivo}")
         else:
             sys.stdout.write(texto + "\n")
+    elif accion == "respaldo":
+        opciones = ["💾 Hacer una copia de seguridad ahora",
+                    "📂 Ver las copias existentes"]
+        indice = ui.seleccionar("¿Qué hacemos?", opciones)
+        if indice == 0:
+            comandos.cmd_respaldo(conexion, "hacer", None)
+        else:
+            comandos.cmd_respaldo(conexion, "listar", None)
 
 
 def _editar(conexion) -> None:

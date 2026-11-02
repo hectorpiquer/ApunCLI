@@ -507,6 +507,78 @@ def cmd_hoy(conexion) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Respaldo
+# ---------------------------------------------------------------------------
+
+def cmd_respaldo(conexion, sub: str, ruta_fichero: Optional[str]) -> None:
+    if sub == "hacer":
+        ruta = db.respaldo()
+        print(f"✔ Copia de seguridad hecha: {ruta}")
+    elif sub == "listar":
+        respaldos = db.lista_de_respaldos()
+        ui.titulo_de_seccion(f"Copias de seguridad ({len(respaldos)})")
+        if not respaldos:
+            print(ui.tenue("(ninguna). Haz una con: apuncli respaldo hacer"))
+            return
+        for ruta in respaldos:
+            print(f"  · {ruta}")
+    elif sub == "restaurar":
+        if not ruta_fichero:
+            respaldos = db.lista_de_respaldos()
+            if not respaldos:
+                raise ApuncliError("No hay copias de seguridad. Usa 'apuncli respaldo hacer'.")
+            ruta_fichero = respaldos[0]
+            print(ui.tenue(f"Usando la copia más reciente: {ruta_fichero}"))
+        if not ui.confirmar(f"¿Restaurar tus apuntes desde {ruta_fichero}? "
+                            "Se perderán los cambios posteriores a esa copia."):
+            print("Cancelado.")
+            return
+        db.restaurar(conexion, ruta_fichero)
+        print("✔ Apuntes restaurados. Vuelve a listar (la sesión actual usa la copia vieja).")
+
+
+# ---------------------------------------------------------------------------
+# Autocompletado de la terminal
+# ---------------------------------------------------------------------------
+
+COMPLETADOR_BASH = """\
+# Autocompletado de apuncli (añade esta línea a ~/.bashrc):
+#   eval "$(apuncli completar)"
+_apuncli_completar() {
+    local opcion="${COMP_WORDS[1]}"
+    local lista_comandos="crear listar ls ver buscar search editar edit borrar rm abrir open exportar \
+importar repasar review test recurso rec temario hoy stats etiquetas tags asignaturas materias completar respaldo"
+    local lista_asignaturas=""
+    local lista_etiquetas=""
+    if command -v apuncli >/dev/null 2>&1; then
+        lista_asignaturas="$(apuncli asignaturas 2>/dev/null | sed 's/^ *· //')"
+        lista_etiquetas="$(apuncli etiquetas 2>/dev/null | tr -d '[]')"
+    fi
+    case "$opcion" in
+        ver|abrir|open|borrar|rm|editar|edit|exportar)
+            COMPREPLY=( $(compgen -W "$(apuncli listar 2>/dev/null | awk 'NR>2 {print $1}')" -- "${COMP_WORDS[COMP_CWORD]}") ) ;;
+        -a|--asignatura)
+            COMPREPLY=( $(compgen -W "$lista_asignaturas" -- "${COMP_WORDS[COMP_CWORD]}") ) ;;
+        -t|--etiqueta)
+            COMPREPLY=( $(compgen -W "$lista_etiquetas" -- "${COMP_WORDS[COMP_CWORD]}") ) ;;
+        *)
+            if [ "$COMP_CWORD" -eq 1 ]; then
+                COMPREPLY=( $(compgen -W "$lista_comandos" -- "${COMP_WORDS[COMP_CWORD]}") )
+            else
+                COMPREPLY=( $(compgen -W "$lista_comandos $lista_asignaturas $lista_etiquetas" \
+                              -- "${COMP_WORDS[COMP_CWORD]}") )
+            fi ;;
+    esac
+}
+complete -F _apuncli_completar apuncli
+"""
+
+
+def cmd_completar() -> None:
+    sys.stdout.write(COMPLETADOR_BASH)
+
+
+# ---------------------------------------------------------------------------
 
 def _parsear_id(valor: str) -> int:
     try:

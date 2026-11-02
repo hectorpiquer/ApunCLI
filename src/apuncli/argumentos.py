@@ -178,6 +178,21 @@ def crear_parser() -> argparse.ArgumentParser:
                    description="Te dice qué apuntes no has repasado aún, cuáles tienen "
                                "preguntas para test y cuáles tocaste hace poco.")
 
+    # respaldo
+    p = sub.add_parser("respaldo", aliases=["backup"], help="copia de seguridad de tus apuntes",
+                       description="Guarda o restaura una copia de la base de datos. "
+                                   "Las copias se guardan junto a la base de datos.")
+    respaldos_sub = p.add_subparsers(dest="accion", metavar="ACCIÓN")
+    respaldos_sub.add_parser("hacer", help="crear una copia de seguridad ahora")
+    respaldos_sub.add_parser("listar", help="listar las copias existentes")
+    pr = respaldos_sub.add_parser("restaurar", help="restaurar desde una copia")
+    pr.add_argument("fichero", nargs="?", help="fichero de copia (vacío = la más reciente)")
+
+    # completar
+    sub.add_parser("completar", help="guion de autocompletado para tu terminal",
+                   description="Imprime el código de autocompletado (TAB) para bash. "
+                               "Se configura una vez en tu ~/.bashrc.")
+
     return parser
 
 
@@ -270,5 +285,10 @@ def _despachar(conexion, args, parser) -> None:
         comandos.cmd_stats(conexion)
     elif comando == "hoy":
         comandos.cmd_hoy(conexion)
+    elif comando in ("respaldo", "backup"):
+        accion = args.accion or "hacer"
+        comandos.cmd_respaldo(conexion, accion, getattr(args, "fichero", None))
+    elif comando == "completar":
+        comandos.cmd_completar()
     else:
         parser.print_help()

@@ -290,6 +290,71 @@ def marcar_repasado(conexion: sqlite3.Connection, apunte_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Respaldo (backup / restore)
+# ---------------------------------------------------------------------------
+
+def respaldo() -> str:
+    """Copia la base de datos a ~/.apuncli/respaldo-YYYYMMDD-HHMM.db."""
+    import shutil
+
+    origen = base_datos_ruta()
+    if not os.path.exists(origen):
+        raise ApuncliError("No hay base de datos que respaldar todavía.")
+    destino = os.path.join(
+        os.path.dirname(origen) or ".",
+        datetime.now().strftime("respaldo-%Y%m%d-%H%M%S.db"),
+    )
+    conexion = sqlite3.connect(origen)
+    try:
+        destino_con = sqlite3.connect(destino)
+        try:
+            conexion.backup(destino_con)
+        finally:
+            destino_con.close()
+    finally:
+        conexion.close()
+    return destino
+
+
+def restaurar(conexion: sqlite3.Connection, ruta: str) -> None:
+    """Restaura la base de datos desde un fichero de respaldo (válido).
+
+    Pisa la base de datos actual. La conexión dada queda inutilizable para
+    escritura; cada comando de apuncli abre la suya, así que el siguiente
+    ya verá los datos restaurados.
+    """
+    ruta = os.path.expanduser(ruta)
+    if not os.path.exists(ruta):
+        raise ApuncliError(f"No existe el fichero de respaldo: {ruta}")
+    prueba = None
+    try:
+        prueba = sqlite3.connect(ruta)
+        prueba.execute("SELECT COUNT(*) FROM apuntes").fetchone()
+    except sqlite3.Error as error:
+        raise ApuncliError(f"El fichero no es una base de datos válida de apuncli: {error}")
+    finally:
+        if prueba is not None:
+            prueba.close()
+    destino = base_datos_ruta()
+    origen = sqlite3.connect(ruta)
+    destino_con = sqlite3.connect(destino)
+    try:
+        origen.backup(destino_con)
+    finally:
+        destino_con.close()
+        origen.close()
+
+
+def lista_de_respaldos() -> List[str]:
+    directorio = os.path.dirname(base_datos_ruta()) or "."
+    if not os.path.isdir(directorio):
+        return []
+    nombres = [f for f in sorted(os.listdir(directorio), reverse=True)
+               if f.startswith("respaldo-") and f.endswith(".db")]
+    return [os.path.join(directorio, f) for f in nombres]
+
+
+# ---------------------------------------------------------------------------
 # Recursos (enlaces y ficheros adjuntos a un apunte)
 # ---------------------------------------------------------------------------
 

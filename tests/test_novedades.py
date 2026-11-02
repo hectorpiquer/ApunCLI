@@ -127,5 +127,40 @@ class TestTestAutomatico(Base):
         self.assertFalse(testmotor.es_correcta("", "cualquier cosa"))
 
 
+class TestRespaldo(Base):
+    def test_hacer_listar_y_restaurar(self):
+        db.crear_apunte(self.conexion, "Importante", "no lo pierdo")
+        ruta = db.respaldo()
+        self.assertTrue(os.path.exists(ruta))
+        self.assertEqual(len(db.lista_de_respaldos()), 1)
+        db.crear_apunte(self.conexion, "Borrable")
+        db.restaurar(self.conexion, ruta)
+        conexion2 = db.conectar()
+        try:
+            apuntes = db.listar_apuntes(conexion2)
+            self.assertEqual([a["titulo"] for a in apuntes], ["Importante"])
+        finally:
+            conexion2.close()
+
+    def test_restaurar_fichero_invalido(self):
+        ruta = os.path.join(self.directorio.name, "malo.db")
+        with open(ruta, "w") as archivo:
+            archivo.write("no soy sqlite")
+        with self.assertRaises(ApuncliError):
+            db.restaurar(self.conexion, ruta)
+
+
+class TestCompletar(Base):
+    def test_devuelve_script(self):
+        import io
+        from contextlib import redirect_stdout
+        from apuncli import comandos
+
+        salida = io.StringIO()
+        with redirect_stdout(salida):
+            comandos.cmd_completar()
+        self.assertIn("complete -F", salida.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
