@@ -135,6 +135,25 @@ class TestCLI(unittest.TestCase):
         self.assertIn("cuerpo uno", salida)
         self.assertIn("ED", salida)
 
+    def test_demo_crea_apuntes_de_ejemplo(self):
+        codigo, salida = self.ejecutar("demo", "--si")
+        self.assertEqual(codigo, 0)
+        self.assertIn("apuntes de ejemplo creados", salida)
+        _, salida = self.ejecutar("listar", "-t", "demo")
+        self.assertEqual(salida.count("[demo]"), 4)
+        codigo, _ = self.ejecutar("demo", "--si")   # segundo intento: ya existen
+        self.assertEqual(codigo, 0)
+
+    def test_etiquetas_retoque(self):
+        self.ejecutar("crear", "ConTags", "-c", "x", "-t", "vieja")
+        codigo, _ = self.ejecutar("etiquetas", "--anadir", "1", "nueva", "extra")
+        self.assertEqual(codigo, 0)
+        _, salida = self.ejecutar("ver", "1")
+        self.assertIn("[extra] [nueva] [vieja]", salida)
+        self.ejecutar("etiquetas", "--quitar", "1", "vieja")
+        _, salida = self.ejecutar("ver", "1")
+        self.assertNotIn("[vieja]", salida)
+
     def test_repasar_no_interactivo(self):
         self.ejecutar("crear", "A", "-c", "x")
         self.ejecutar("crear", "B", "-c", "y")

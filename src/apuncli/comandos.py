@@ -464,10 +464,32 @@ def _corregir_pregunta(respuesta: str, pregunta: dict) -> bool:
 # Etiquetas, asignaturas y estadísticas
 # ---------------------------------------------------------------------------
 
-def cmd_etiquetas(conexion) -> None:
+def cmd_etiquetas(conexion, anadir: Optional[int] = None, quitar: Optional[int] = None,
+                  nombres: Optional[List[str]] = None) -> None:
+    if anadir is not None or quitar is not None:
+        _retoque_etiquetas(conexion, anadir, quitar, nombres or [])
+        return
     etiquetas = db.todas_las_etiquetas(conexion)
     ui.titulo_de_seccion(f"Etiquetas ({len(etiquetas)})")
     print(" ".join(f"[{e}]" for e in etiquetas) if etiquetas else ui.tenue("(sin etiquetas)"))
+
+
+def _retoque_etiquetas(conexion, anadir: Optional[int], quitar: Optional[int],
+                       nombres: List[str]) -> None:
+    if not nombres:
+        raise ApuncliError("Indica las etiquetas. Ejemplo: apuncli etiquetas --anadir 3 examen repaso")
+    apunte_id = anadir if anadir is not None else quitar
+    _apunte_obligatorio(conexion, apunte_id)
+    actuales = db.etiquetas_del_apunte(conexion, apunte_id)
+    nuevas = [n.strip().lower() for n in nombres if n.strip()]
+    if anadir is not None:
+        result = sorted(set(actuales) | set(nuevas))
+    else:
+        result = sorted(set(actuales) - set(nuevas))
+    db.editar_apunte(conexion, apunte_id, etiquetas=result)
+    accion = "añadidas" if anadir is not None else "quitadas"
+    print(f"✔ Etiquetas {accion} en el apunte {apunte_id}: " +
+          (" ".join(f"[{e}]" for e in result) if result else ui.tenue("(ninguna)")))
 
 
 def cmd_asignaturas(conexion) -> None:
@@ -568,8 +590,9 @@ COMPLETADOR_BASH = """\
 #   eval "$(apuncli completar)"
 _apuncli_completar() {
     local opcion="${COMP_WORDS[1]}"
-    local lista_comandos="crear listar ls ver buscar search editar edit borrar rm abrir open exportar \
-importar repasar review test recurso rec temario hoy stats etiquetas tags asignaturas materias completar respaldo"
+    local         lista_comandos="crear listar ls ver buscar search editar edit borrar rm limpiar abrir open exportar \
+importar repasar review test recurso rec temario hoy stats etiquetas tags asignaturas materias completar \
+respaldo demo"
     local lista_asignaturas=""
     local lista_etiquetas=""
     if command -v apuncli >/dev/null 2>&1; then
@@ -599,6 +622,51 @@ complete -F _apuncli_completar apuncli
 def cmd_completar() -> None:
     sys.stdout.write(COMPLETADOR_BASH)
 
+
+# ---------------------------------------------------------------------------
+# Demo (base de datos de ejemplo, no toca tus apuntes)
+# ---------------------------------------------------------------------------
+
+DEMO_APUNTES = [
+    ("Tema 1: arrays", "ED", "tema1,examen",
+     "Un array es una colección de elementos contiguos en memoria.\n\n"
+     "## Operaciones\n- acceso por índice O(1)\n- inserción O(n)\n- borrado O(n)\n- recorrido O(n)\n\n"
+     "En Java, ArrayList crece un 50% cuando se llena."),
+    ("Tema 2: pilas y colas", "ED", "tema1,examen",
+     "La **pila** es una estructura LIFO: el último en entrar es el primero en salir.\n"
+     "La **cola** es una estructura FIFO: el primero en entrar es el primero en salir.\n\n"
+     "## Operaciones de pila\n- push mete arriba\n- pop saca de arriba\n- peek mira el de arriba\n\n"
+     "**Pregunta:** ¿Qué coste tiene push en una pila?\n"
+     "**Respuesta:** O(1)."),
+    ("Tema 3: recursion", "ED", "tema2",
+     "La **recursión** es una técnica donde una función se llama a sí misma.\n\n"
+     "## Componentes\n- caso base\n- caso recursivo\n- progreso hacia el base\n\n"
+     "**Pregunta:** ¿Qué pasa si falta el caso base?\n"
+     "**Respuesta:** El programa entra en bucle infinito y revienta la pila."),
+    ("Tema 4: Pitágoras", "Matemáticas", "geometría",
+     "El **teorema de Pitágoras** es la relación a² + b² = c² entre los catetos y la hipotenusa.\n\n"
+     "## Aplicaciones\n- calcular la diagonal de un rectángulo\n- distancia entre dos puntos\n- verificar triángulos rectángulos"),
+]
+
+
+def cmd_demo(conexion, si: bool) -> None:
+    """Crea apuntes de ejemplo para probar la herramienta sin riesgo."""
+    existentes = {a["titulo"] for a in db.listar_apuntes(conexion)}
+    pendientes = [a for a in DEMO_APUNTES if a[0] not in existentes]
+    if not pendientes:
+        print("Los apuntes de ejemplo ya existen. Bórralos con: apuncli limpiar -t demo")
+        return
+    if not si and not ui.confirmar(
+            f"¿Crear {len(pendientes)} apuntes de ejemplo en TU base de datos? "
+            "(luego puedes borrarlos todos con: apuncli limpiar -t demo)"):
+        print("Cancelado.")
+        return
+    for titulo, asignatura, etiquetas, cuerpo in pendientes:
+        db.crear_apunte(conexion, titulo, cuerpo, asignatura,
+                        [e.strip() for e in etiquetas.split(",") if e.strip()] + ["demo"])
+    print(f"✔ {len(pendientes)} apuntes de ejemplo creados (etiqueta [demo]).")
+    print("  Pruébalo todo sin riesgo: apuncli listar · apuncli test · apuncli repasar")
+    print("  Y para quitarlos: apuncli limpiar -t demo --si")
 
 # ---------------------------------------------------------------------------
 

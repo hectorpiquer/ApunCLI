@@ -169,8 +169,12 @@ def crear_parser() -> argparse.ArgumentParser:
     p.add_argument("-T", "--titulo", help="título del temario")
 
     # etiquetas
-    sub.add_parser("etiquetas", aliases=["tags"], help="listar todas las etiquetas",
-                   description="Muestra las etiquetas que existen.")
+    p = sub.add_parser("etiquetas", aliases=["tags"], help="listar etiquetas oretoquear las de un apunte",
+                       description="Sin argumentos lista todas las etiquetas. Con --anadir/--quitar "
+                                   "cambia las etiquetas de un apunte sin reescribir el resto.")
+    p.add_argument("--anadir", metavar="ID", type=int, help="id del apunte al que añadir etiquetas")
+    p.add_argument("--quitar", metavar="ID", type=int, help="id del apunte al que quitar etiquetas")
+    p.add_argument("nombres", nargs="*", help="nombres de las etiquetas")
 
     # asignaturas
     sub.add_parser("asignaturas", aliases=["materias"], help="listar las asignaturas",
@@ -200,6 +204,13 @@ def crear_parser() -> argparse.ArgumentParser:
     sub.add_parser("completar", help="guion de autocompletado para tu terminal",
                    description="Imprime el código de autocompletado (TAB) para bash. "
                                "Se configura una vez en tu ~/.bashrc.")
+
+    # demo
+    p = sub.add_parser("demo", help="crear apuntes de ejemplo para probar",
+                       description="Inserta 4 apuntes de muestra (ED y Matemáticas) con "
+                                   "negritas, listas y preguntas para que pruebes el test, "
+                                   "el repaso y el temario. Todos llevan etiqueta [demo].")
+    p.add_argument("--si", action="store_true", help="sin confirmar")
 
     return parser
 
@@ -288,7 +299,7 @@ def _despachar(conexion, args, parser) -> None:
     elif comando == "temario":
         comandos.cmd_temario(conexion, args.asignatura, args.etiqueta, args.titulo)
     elif comando in ("etiquetas", "tags"):
-        comandos.cmd_etiquetas(conexion)
+        comandos.cmd_etiquetas(conexion, args.anadir, args.quitar, args.nombres)
     elif comando in ("asignaturas", "materias"):
         comandos.cmd_asignaturas(conexion)
     elif comando == "stats":
@@ -300,5 +311,7 @@ def _despachar(conexion, args, parser) -> None:
         comandos.cmd_respaldo(conexion, accion, getattr(args, "fichero", None))
     elif comando == "completar":
         comandos.cmd_completar()
+    elif comando == "demo":
+        comandos.cmd_demo(conexion, args.si)
     else:
         parser.print_help()

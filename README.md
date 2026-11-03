@@ -10,6 +10,27 @@ Todo se guarda en una base de datos **SQLite** local (`~/.apuncli/apuncli.db`)
 y el proyecto usa **solo la librería estándar de Python**: nada que instalar
 más allá del propio `apuncli`.
 
+### ¿No sabes por dónde empezar? Prueba la demo
+
+```bash
+$ apuncli demo            # crea 4 apuntes de ejemplo (etiqueta [demo])
+$ apuncli test            # te hace preguntas generadas de esos apuntes
+$ apuncli repasar         # modo ficha
+$ apuncli limpiar -t demo --si   # y los quitas cuando quieras
+```
+
+```
+$ apuncli test -n 2
+Test con 2 pregunta(s). Responde con tus palabras (Enter vacío para saltar, 'q' para salir).
+
+─ Pregunta 1/2 · de 'Tema 2: pilas y colas' ─
+¿Qué coste tiene push en una pila?
+Tu respuesta: O(1)
+✔ ¡Correcto!
+
+Resultado: 1/1 · nota 10.0/10
+```
+
 ```
 $ apuncli crear "Tema 4: árboles binarios" -a "ED" -t "estructuras,arbols" -c "Máx. 2 hijos por nodo."
 $ apuncli buscar "hijos"
@@ -146,11 +167,12 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | `recurso` (`rec`)  | Adjuntar/abrir enlaces y ficheros a un apunte     | `apuncli recurso anadir 3 https://…` |
 | `temario`          | Índice Markdown completo (para imprimir o PDF)    | `apuncli temario -a ED > temario.md` |
 | `hoy`              | Plan rápido: qué estudiar hoy                     | `apuncli hoy`                        |
-| `etiquetas`        | Ver todas las etiquetas                           | `apuncli etiquetas`                  |
+| `etiquetas`        | Ver etiquetas; o añadir/quitar las de un apunte   | `apuncli etiquetas --anadir 3 repaso` |
 | `asignaturas`      | Ver las asignaturas existentes                    | `apuncli asignaturas`                |
 | `stats`            | Estadísticas de estudio                           | `apuncli stats`                      |
 | `respaldo` (`backup`) | Copia de seguridad y restauración               | `apuncli respaldo hacer`             |
 | `completar`        | Configurar el autocompletado (TAB)                | `eval "$(apuncli completar)"`         |
+| `demo`             | Apuntes de ejemplo para probarlo todo             | `apuncli demo`                       |
 
 Todos los comandos aceptan `--help` para ver sus opciones, por ejemplo
 `apuncli crear --help`.
