@@ -1,14 +1,17 @@
 """Implementación de los comandos de apuncli."""
 
+import json
 import os
 import re
 import sqlite3
 import sys
 import tempfile
+from pathlib import Path
 from typing import List, Optional
 
-from . import db, formato, recursos as recursos_mod, temario, testmotor, ui
-from .errores import ApuncliError
+from . import ai, config as config_mod, db, formato, motor as motor_mod
+from . import recursos as recursos_mod, temario, testmotor, ui
+from .errores import AccionNoValida, ApuncliError, ConfigError, FalloEjecucion, SinRedError
 
 
 # ---------------------------------------------------------------------------
@@ -54,8 +57,17 @@ def _adjuntar_detectados(conexion, apunte_id: int, cuerpo: str) -> None:
 # Listar
 # ---------------------------------------------------------------------------
 
-def cmd_listar(conexion, asignatura: Optional[str], etiqueta: Optional[str]) -> None:
+def cmd_listar(conexion, asignatura: Optional[str], etiqueta: Optional[str],
+               como_json: bool = False) -> None:
     apuntes = db.listar_apuntes(conexion, asignatura=asignatura, etiqueta=etiqueta)
+    if como_json:
+        datos = []
+        for apunte in apuntes:
+            fila = dict(apunte)
+            fila["etiquetas"] = db.etiquetas_del_apunte(conexion, apunte["id"])
+            datos.append(fila)
+        print(json.dumps(datos, ensure_ascii=False, indent=2))
+        return
     filtros = []
     if asignatura:
         filtros.append(f"asignatura={asignatura}")
@@ -621,6 +633,126 @@ complete -F _apuncli_completar apuncli
 
 def cmd_completar() -> None:
     sys.stdout.write(COMPLETADOR_BASH)
+
+
+# ---------------------------------------------------------------------------
+# Acciones externas (acciones.json) · acciones / validar / ejecutar
+# ---------------------------------------------------------------------------
+
+def _cargar_config(ruta: Optional[str]) -> config_mod.Configuracion:
+    donde = Path(ruta).expanduser() if ruta else Path("acciones.json")
+    return config_mod.Configuracion.cargar(donde)
+
+
+def cmd_acciones(config: config_mod.Configuracion, como_json: bool = False) -> None:
+    if como_json:
+        datos = [{"nombre": a.nombre, "tipo": a.tipo, "descripcion": a.descripcion,
+                  "ia": a.con_ia, "confirmar": a.confirmar} for a in config.acciones]
+        print(json.dumps({"config": str(config.ruta), "acciones": datos},
+                         ensure_ascii=False, indent=2))
+        return
+    ui.titulo_de_seccion(f"Acciones en {config.ruta} ({len(config.acciones)})")
+    for accion in config.acciones:
+        marca = " 🤖" if accion.con_ia else ""
+        print(f"  {accion.nombre:<24} {accion.descripcion}{marca}")
+    print(ui.tenue("\nEjecuta una: apuncli ejecutar <nombre> [carpeta] --simular"))
+
+
+def cmd_validar(ruta: Optional[str]) -> int:
+    """Devuelve 0 si todo vale; lanza ConfigError con TODOS los fallos."""
+    config = _cargar_config(ruta)
+    print(f"✔ {config.ruta} es válido: {len(config.acciones)} acción(es), "
+          f"esquema versión {config.version}.")
+    for accion in config.acciones:
+        print(f"  ✓ {accion.nombre} ({accion.tipo})")
+    return 0
+
+
+def cmd_ejecutar(conexion, config: config_mod.Configuracion, nombre: str,
+                 carpeta: Optional[str], simular: bool, si: bool,
+                 como_json: bool = False) -> None:
+    try:
+        accion = config.buscar(nombre)
+    except ConfigError as error:
+        raise AccionNoValida(str(error))
+
+    if accion.con_ia:
+        _ejecutar_accion_ia(conexion, accion, carpeta, simular, si)
+        return
+    if accion.tipo == "generar-temario":
+        texto = temario.generar_temario(conexion, asignatura=carpeta or None)
+        print(texto)
+        return
+
+    ruta = Path(carpeta).expanduser() if carpeta else (accion.origen or Path.cwd())
+    motor = motor_mod.Motor()
+    if accion.confirmar and not simular and not si:
+        if not ui.confirmar(f"La acción '{accion.nombre}' puede modificar o borrar "
+                            f"ficheros en {ruta}. ¿Continuar?"):
+            print("Cancelado.")
+            return
+    resultado = motor.ejecutar(accion, ruta, simular=simular)
+    if como_json:
+        print(json.dumps({"accion": nombre, "simulada": simular,
+                          "hechos": resultado.hechos, "avisos": resultado.avisos,
+                          "omitidos": resultado.omitidos}, ensure_ascii=False, indent=2))
+        return
+    ui.titulo_de_seccion(("SIMULACIÓN · " if simular else "") + resultado.resumen())
+    for aviso in resultado.avisos:
+        print(f"  · {aviso}")
+    for hecho in resultado.hechos:
+        print(f"  ✔ {hecho}" if not simular else f"  → {hecho}")
+    if not resultado.hechos:
+        print(ui.tenue("  Nada que hacer: ningún fichero cumple el filtro."))
+
+
+def _ejecutar_accion_ia(conexion, accion, carpeta: Optional[str],
+                        simular: bool, si: bool) -> None:
+    """resumir-ia / generar-preguntas-ia: el apunte se indica con el id (CARPETA)."""
+    proveedor = ai.ProveedorIA()
+    if simular:
+        print(f"[SIMULACIÓN] '{accion.nombre}' enviaría el apunte elegido al modelo "
+              f"'{proveedor.modelo}' de {proveedor.url} y escribiría el resultado. "
+              "Sin IA disponible, avisa y no rompe nada.")
+        return
+    try:
+        _apunte_obligatorio(conexion, _parsear_id(carpeta or ""))
+    except ApuncliError:
+        raise ApuncliError(f"Las acciones con IA necesitan el id del apunte: "
+                           f"apuncli ejecutar {accion.nombre} <id-de-apunte> "
+                           "(mira los ids con 'apuncli listar')")
+    apunte = db.obtener_apunte(conexion, int(carpeta))
+    texto = f"{apunte['titulo']}\n\n{apunte['contenido'] or ''}"
+    try:
+        if accion.tipo == "resumir-ia":
+            salida = ai.accion_resumir(texto, proveedor)
+        else:
+            salida = ai.accion_generar_preguntas(texto, proveedor)
+    except SinRedError as error:
+        raise ApuncliError(str(error))
+    if accion.tipo == "generar-preguntas-ia" and (si or ui.confirmar(
+            "¿Guardar las preguntas generadas en el apunte "
+            "(se añaden al final y entran en 'apuncli test')?")):
+        db.editar_apunte(conexion, apunte["id"],
+                        contenido=(apunte["contenido"] + "\n\n" + salida).strip())
+        print(f"✔ Preguntas guardadas en el apunte {apunte['id']}.")
+    else:
+        print(salida)
+
+
+def cmd_comprobar_ia(como_json: bool = False) -> int:
+    prueba = ai.ProveedorIA().comprobar()
+    if como_json:
+        print(json.dumps({"disponible": prueba.disponible, "proveedor": prueba.proveedor,
+                          "modelo": prueba.modelo, "detalle": prueba.detalle},
+                         ensure_ascii=False, indent=2))
+        return 0 if prueba.disponible else 1
+    estado = ui.destacado("✅ IA disponible") if prueba.disponible else ui.tenue("⚠️  IA no disponible")
+    print(f"{estado}\n  proveedor: {prueba.proveedor}\n  modelo:    {prueba.modelo}"
+          f"\n  config:    {prueba.origen}\n  detalle:   {prueba.detalle}")
+    if not prueba.disponible:
+        print("\n  Sin IA la CLI sigue funcionando: solo las dos acciones 🤖 la necesitan.")
+    return 0 if prueba.disponible else 1
 
 
 # ---------------------------------------------------------------------------

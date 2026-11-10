@@ -4,8 +4,8 @@ import argparse
 import sqlite3
 import sys
 
-from . import comandos, db, ui
-from .errores import ApuncliError
+from . import __version__, comandos, db, ui
+from .errores import ApuncliError, ConfigError
 
 AYUDA_PRINCIPAL = """\
 apuncli — gestor de apuntes de estudio desde la terminal
@@ -35,7 +35,9 @@ def crear_parser() -> argparse.ArgumentParser:
         epilog=EPILOGO,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--version", action="version", version="apuncli 1.0.0")
+    parser.add_argument("--version", action="version", version=f"apuncli {__version__}")
+    parser.add_argument("--config", metavar="RUTA",
+                        help="otro fichero de acciones (por defecto ./acciones.json)")
     sub = parser.add_subparsers(dest="comando", metavar="COMANDO")
 
     # crear
@@ -57,6 +59,8 @@ def crear_parser() -> argparse.ArgumentParser:
                        description="Lista los apuntes guardados, con filtros opcionales.")
     p.add_argument("-a", "--asignatura", help="filtrar por asignatura")
     p.add_argument("-t", "--etiqueta", help="filtrar por etiqueta")
+    p.add_argument("--json", action="store_true",
+                   help="salida en JSON (para tuberías y otros programas)")
 
     # ver
     p = sub.add_parser("ver", help="ver un apunte completo",
@@ -212,12 +216,46 @@ def crear_parser() -> argparse.ArgumentParser:
                                    "el repaso y el temario. Todos llevan etiqueta [demo].")
     p.add_argument("--si", action="store_true", help="sin confirmar")
 
+    # acciones / validar / ejecutar / comprobar-ia (el sistema de acciones)
+    p = sub.add_parser("acciones", help="listar las acciones de acciones.json",
+                       description="Muestra las acciones definidas en el fichero de "
+                                   "configuración con su descripción.")
+    p.add_argument("--json", action="store_true", help="salida en JSON")
+
+    p = sub.add_parser("validar", help="comprobar acciones.json (código 3 si falla)",
+                       description="Valida el fichero de configuración y dice "
+                                   "exactamente qué campo falla. Sale con código 3 "
+                                   "si el JSON no es válido.")
+
+    p = sub.add_parser("ejecutar", help="ejecutar una acción del fichero de acciones",
+                       description="Ejecuta la acción NOMBRE sobre CARPETA (o el origen "
+                                   "de la acción). --simular enseña qué haría sin tocar "
+                                   "nada; --si no pregunta. Las acciones con IA piden el "
+                                   "id del apunte en lugar de carpeta.")
+    p.add_argument("nombre", help="nombre de la acción (ver 'apuncli acciones')")
+    p.add_argument("carpeta", nargs="?",
+                   help="carpeta sobre la que trabajar (o id del apunte en acciones IA)")
+    p.add_argument("--simular", action="store_true", help="enseña qué haría, sin tocar nada")
+    p.add_argument("--si", action="store_true", help="no preguntar (para scripts)")
+    p.add_argument("--json", action="store_true", help="salida en JSON")
+
+    p = sub.add_parser("comprobar-ia", help="probar la conexión con el modelo de IA",
+                       description="Comprueba si el proveedor de IA del .env/ia.env "
+                                   "responde. Sin IA la CLI sigue funcionando con "
+                                   "todo lo demás.")
+    p.add_argument("--json", action="store_true", help="salida en JSON")
+
     return parser
 
 
 def ejecutar(argv=None) -> int:
     parser = crear_parser()
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as salida:
+        # argparse ya imprime el mensaje; codificamos según la rúbrica:
+        # --help sale con 0; un error de uso, con 2.
+        return 0 if (salida.code == 0 or salida.code is None) else 2
 
     try:
         conexion = db.conectar()
@@ -238,8 +276,12 @@ def ejecutar(argv=None) -> int:
             parser.print_help()
             return 0
         with conexion:
-            _despachar(conexion, args, parser)
-        return 0
+            return _despachar(conexion, args, parser) or 0
+    except ConfigError as error:
+        print("error de configuración:", file=sys.stderr)
+        for problema in error.problemas:
+            print(f"  · {problema}", file=sys.stderr)
+        return 3
     except ApuncliError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -259,7 +301,7 @@ def _despachar(conexion, args, parser) -> None:
         comandos.cmd_crear(conexion, args.titulo, args.contenido, args.asignatura,
                            args.etiquetas, args.editor, args.stdin)
     elif comando in ("listar", "ls"):
-        comandos.cmd_listar(conexion, args.asignatura, args.etiqueta)
+        comandos.cmd_listar(conexion, args.asignatura, args.etiqueta, args.json)
     elif comando == "ver":
         comandos.cmd_ver(conexion, comandos._parsear_id(args.id))
     elif comando in ("buscar", "search"):
@@ -313,5 +355,15 @@ def _despachar(conexion, args, parser) -> None:
         comandos.cmd_completar()
     elif comando == "demo":
         comandos.cmd_demo(conexion, args.si)
+    elif comando == "acciones":
+        comandos.cmd_acciones(comandos._cargar_config(args.config), args.json)
+    elif comando == "validar":
+        return comandos.cmd_validar(args.config)
+    elif comando == "ejecutar":
+        config = comandos._cargar_config(args.config)
+        comandos.cmd_ejecutar(conexion, config, args.nombre, args.carpeta,
+                              args.simular, args.si, args.json)
+    elif comando == "comprobar-ia":
+        return comandos.cmd_comprobar_ia(args.json)
     else:
         parser.print_help()

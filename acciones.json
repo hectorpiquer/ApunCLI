@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "acciones": [
+    {
+      "nombre": "ordenar-descargas",
+      "descripcion": "Mueve los PDF y documentos de la carpeta de Descargas a la carpeta de destino (Documentos/PDF)",
+      "tipo": "mover",
+      "origen": "~/Descargas",
+      "filtro": { "extensiones": [".pdf", ".docx", ".odt", ".txt", ".md"] },
+      "destino": "~/Documentos/PDF",
+      "confirmar": true
+    },
+    {
+      "nombre": "duplicados-descargas",
+      "descripcion": "Informa de los ficheros duplicados en Descargas (mismo contenido, distinto nombre) por hash SHA-256",
+      "tipo": "duplicados",
+      "origen": "~/Descargas"
+    },
+    {
+      "nombre": "limpiar-temporales",
+      "descripcion": "Borra los .tmp con más de 30 días en la carpeta que le pases",
+      "tipo": "borrar",
+      "filtro": { "patron": "\\.tmp$", "mas_antiguo_que_dias": 30 },
+      "confirmar": true
+    },
+    {
+      "nombre": "renombrar-fotos",
+      "descripcion": "Renombra fotos con su fecha: 2026-11-10_001.jpg",
+      "tipo": "renombrar",
+      "filtro": { "extensiones": [".jpg", ".jpeg", ".png"] },
+      "plantilla": "{fecha:%Y-%m-%d}_{n:03}{ext}",
+      "confirmar": true
+    },
+    {
+      "nombre": "respaldo-pdfs",
+      "descripcion": "Copia los PDF a una carpeta de copia de seguridad (los originales no se tocan)",
+      "tipo": "copiar",
+      "filtro": { "extensiones": [".pdf"] },
+      "destino": "~/respaldo-apuntes"
+    },
+    {
+      "nombre": "resumir-ia",
+      "descripcion": "Resume un apunte en 5-8 viñetas con IA (necesita .env configurado; sin red avisa y no rompe nada)",
+      "tipo": "resumir-ia"
+    },
+    {
+      "nombre": "generar-preguntas-ia",
+      "descripcion": "Genera preguntas de examen con IA a partir de un apunte (formato apto para 'apuncli test')",
+      "tipo": "generar-preguntas-ia"
+    },
+    {
+      "nombre": "generar-temario",
+      "descripcion": "Genera el temario completo en Markdown (por asignatura: CARPETA=nombre de la asignatura)",
+      "tipo": "generar-temario"
+    }
+  ]
+}

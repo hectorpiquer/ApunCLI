@@ -8,3 +8,6 @@ venv/
 .pytest_cache/
 .coverage
 *.db
+
+.env
+ia.env
