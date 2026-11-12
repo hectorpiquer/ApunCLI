@@ -32,6 +32,14 @@ def _sin_red(posible_red_falsa, monkeypatch):
 def posible_red_falsa():
     return "http://127.0.0.1:1"  # nada escucha aquí → el proxy falla al instante
 
+
+@pytest.fixture(autouse=True)
+def _sin_clave_ia(monkeypatch):
+    """Ningún test hereda la clave/modelo reales del ia.env del usuario."""
+    monkeypatch.setenv("APUNCLI_ENV", str(Path(__file__).parent / "inexistente.env"))
+    for clave in ("APUNCLI_IA_URL", "APUNCLI_IA_CLAVE", "APUNCLI_IA_MODELO"):
+        monkeypatch.delenv(clave, raising=False)
+
 from apuncli import motor as motor_mod
 from apuncli.config import AccionConfig, Configuracion, validar_esquema
 from apuncli.errores import ConfigError, FalloEjecucion, SinRedError
@@ -209,9 +217,7 @@ def test_hash_de_estable():
 # ---------------------------------------------------------------------------
 
 def test_sin_clave_no_rompe(tmp_path, monkeypatch):
-    monkeypatch.delenv("APUNCLI_IA_URL", raising=False)
-    monkeypatch.delenv("APUNCLI_IA_CLAVE", raising=False)
-    monkeypatch.setenv("APUNCLI_IA_MODELO", "")
+    monkeypatch.delenv("APUNCLI_IA_MODELO", raising=False)
     from apuncli.ai import ProveedorIA
     proveedor = ProveedorIA(url="http://192.0.2.1:9/v1", modelo="")  # IP sin ruta (TEST-NET)
     with pytest.raises(SinRedError):
