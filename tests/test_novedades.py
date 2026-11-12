@@ -63,7 +63,9 @@ class TestDeteccion(unittest.TestCase):
                 u and os.path.exists(u) and
                 os.path.samefile(u, os.path.realpath(ruta))
                 for u, _ in encontrados)
-            self.assertTrue(mismo_fichero)
+            self.assertTrue(
+                mismo_fichero,
+                f"no detectado el fichero real. ruta={ruta!r} encontrados={encontrados!r}")
         finally:
             os.unlink(ruta)
 
