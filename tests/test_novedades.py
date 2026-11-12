@@ -57,7 +57,13 @@ class TestDeteccion(unittest.TestCase):
             ruta = archivo.name
         try:
             encontrados = recursos.detectar_en_texto(f"apunte en {ruta}")
-            self.assertTrue(any(u == ruta for u, _ in encontrados))
+            # en Windows el nombre temporal puede venir con forma corta 8.3
+            # (TMP123~1.PDF): se compara el fichero REAL, no el literal.
+            mismo_fichero = any(
+                u and os.path.exists(u) and
+                os.path.samefile(u, os.path.realpath(ruta))
+                for u, _ in encontrados)
+            self.assertTrue(mismo_fichero)
         finally:
             os.unlink(ruta)
 
