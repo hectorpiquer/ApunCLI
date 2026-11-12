@@ -47,6 +47,8 @@ $ apuncli buscar "hijos"
 - [Modo menú (sin memorizar nada)](#modo-menú-sin-memorizar-nada)
 - [Conceptos básicos](#conceptos-básicos)
 - [Comandos](#comandos)
+- [Acciones externas: acciones.json](#acciones-externas-accionesjson)
+- [IA: resumir y generar preguntas (con modo sin red)](#ia-resumir-y-generar-preguntas-con-modo-sin-red)
 - [Ejemplos de uso real](#ejemplos-de-uso-real)
 - [Exportar e importar (Markdown)](#exportar-e-importar-markdown)
 - [Recursos: enlaces y ficheros](#recursos-enlaces-y-ficheros)
@@ -72,20 +74,25 @@ $ apuncli buscar "hijos"
 ## Instalación
 
 ```bash
-git clone https://github.com/hectorpiquer/ApunCLI.git
-cd apuncli
-pip install .
+# con uv o pipx (recomendado): instalable como comando global desde GitHub
+uv tool install git+https://github.com/hectorpiquer/ApunCLI.git
+# o bien:
+pipx install git+https://github.com/hectorpiquer/ApunCLI.git
+
+# y sin uv/pipx, con pip:
+pip install git+https://github.com/hectorpiquer/ApunCLI.git
 ```
 
-Y ya está:
+Y ya está, desde **cualquier carpeta**:
 
 ```bash
 apuncli --help
 ```
 
 > **Sin dependencias externas.** Todo el proyecto usa módulos estándar de
-> Python (`argparse`, `sqlite3`, `unittest`), así que no hay que instalar
-> ninguna librería de terceros.
+> Python (`argparse`, `sqlite3`, `urllib`, `unittest`), así que no hay que
+> instalar ninguna librería de terceros. (Para participar en el desarrollo con
+> los tests nuevos solo hace falta `pytest`.)
 
 ### Ejecutar sin instalar
 
@@ -173,6 +180,10 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | `respaldo` (`backup`) | Copia de seguridad y restauración               | `apuncli respaldo hacer`             |
 | `completar`        | Configurar el autocompletado (TAB)                | `eval "$(apuncli completar)"`         |
 | `demo`             | Apuntes de ejemplo para probarlo todo             | `apuncli demo`                       |
+| `acciones`         | Listar las acciones de `acciones.json` (`--json`) | `apuncli acciones`                   |
+| `validar`          | Comprobar `acciones.json` (código 3 si falla)     | `apuncli validar`                    |
+| `ejecutar`         | Ejecutar una acción (`--simular`, `--si`, `--json`) | `apuncli ejecutar ordenar-descargas ~/Descargas --simular` |
+| `comprobar-ia`     | Probar la conexión con el modelo de IA            | `apuncli comprobar-ia`               |
 
 Todos los comandos aceptan `--help` para ver sus opciones, por ejemplo
 `apuncli crear --help`.
@@ -227,6 +238,79 @@ apuncli borrar 5                 # pregunta antes
 apuncli borrar 5 --si            # sin preguntas
 apuncli limpiar -t sin-usar     # borra todos los apuntes con esa etiqueta
 apuncli limpiar -a "Asignatura vieja"
+```
+
+## Acciones externas: acciones.json
+
+Además de gestionar apuntes, `apuncli` ejecuta **acciones sobre tus ficheros**
+que **no están escritas en el código**: se definen en `acciones.json` (la
+configuración externa; ver el `acciones.json` de ejemplo del repo y el
+[ADR-0001](docs/adr/0001-configuracion-externa.md)). Crear una acción nueva no
+exige tocar Python.
+
+```bash
+$ apuncli acciones                          # ver las acciones definidas
+$ apuncli validar                           # esquema OK… o te dice el campo que falla
+$ apuncli ejecutar ordenar-descargas --simular   # enseña qué haría SIN tocar nada
+$ apuncli ejecutar ordenar-descargas             # pregunta antes de mover
+$ apuncli ejecutar limpiar-temporales ~/pruebas --si   # para scripts
+$ apuncli ejecutar respaldo-pdfs --json | jq .hechos   # salida para máquinas
+```
+
+| Tipo | Qué hace | Campos |
+| ---- | -------- | ------ |
+| `mover` / `copiar` | mueve/copian los ficheros que pasan el filtro | `origen` (u opción), `destino`, `filtro` |
+| `renombrar` | renombra con plantilla: `{fecha:%Y-%m-%d}`, `{n:03}`, `{ext}`, `{nombre}` | `plantilla`, `filtro` |
+| `borrar` | borra lo que pasa el filtro (**filtro obligatorio**) | `filtro`, `confirmar` |
+| `duplicados` | informe de duplicados por hash SHA-256 (no borra) | `filtro` opcional |
+| `generar-temario` | temario Markdown (CARPETA = asignatura) | — |
+| `resumir-ia` / `generar-preguntas-ia` | ven más abajo | — |
+
+`filtro` admite `extensiones` (lista), `patron` (regex sobre el nombre) y
+`mas_antiguo_que_dias` (entero). Las rutas con `~` se expanden. Seguridad:
+los tipos destructivos preguntan salvo con `--si`, y **nunca se pisa un
+fichero existente** (se añade `-1`, `-2`…).
+
+**Códigos de salida**: `0` bien · `1` fallo al ejecutar · `2` error de uso ·
+`3` configuración inválida (con `apuncli validar` o JSON roto). Ejemplo de
+caso feo controlado:
+
+```bash
+$ apuncli --config malas.json validar
+error de configuración:
+  · acciones[0].nombre: 'MAL' no vale; usa minúsculas, dígitos y guiones (ej: 'ordenar-apuntes').
+  · acciones[0].tipo: falta (esperado uno de: borrar, copiar, duplicados, …).
+$ echo $?
+3
+```
+
+## IA: resumir y generar preguntas (con modo sin red)
+
+Dos acciones usan el modelo del centro (Ollama u otra API OpenAI-compatible):
+
+```bash
+apuncli ejecutar resumir-ia 3                    # resume el apunte 3 (5-8 viñetas)
+apuncli ejecutar generar-preguntas-ia 3          # preguntas => respuestas para 'apuncli test'
+apuncli comprobar-ia                             # ¿está el modelo disponible?
+```
+
+- **La clave nunca está en el repo**: vive en `ia.env` o `.env` (ambos en
+  `.gitignore`, con [.env.example](.env.example) documentado). Variables:
+  `APUNCLI_IA_URL`, `APUNCLI_IA_CLAVE`, `APUNCLI_IA_MODELO` (por defecto
+  `qwen3:8b`). También puedes señalar el fichero con `APUNCLI_ENV`.
+- **Modo sin red**: si no hay conexión, falta la clave o el modelo no
+  responde, la CLI **no revienta**: lo explica en una frase y **todo lo demás
+  sigue funcionando igual** (justificación: [ADR-0002](docs/adr/0002-capa-ia-sin-red.md)).
+- `generar-preguntas-ia` puede guardar las preguntas en el apunte: entran
+  directamente en `apuncli test`.
+
+```bash
+$ apuncli comprobar-ia            # (sin el centro cerca)
+⚠️  IA no disponible
+  proveedor: http://192.168.1.50:11434/v1
+  modelo:    qwen3:8b
+  detalle:   No hay conexión con el proveedor de IA… Sin red la CLI sigue
+             funcionando con las acciones que no necesitan IA.
 ```
 
 ## Ejemplos de uso real
@@ -408,25 +492,33 @@ subir el temario a GitHub (Markdown de toda la vida).
 ```
 apuncli/
 ├── pyproject.toml           # metadatos del paquete y punto de entrada
-├── LICENSE                  # MIT
-├── README.md
+├── acciones.json            # TUS acciones (fuera del código) · esquema en config.py
+├── .env.example             # plantilla de la config de IA (ia.env/.env: ignorados)
+├── CHANGELOG.md             # historia de versiones
+├── AGENTS.md · opencode.json · .opencode/   # reglas para el agente
+├── docs/                    # spec, ADRs y prompts del proceso
+├── .github/workflows/       # CI: ubuntu + windows + macos
 ├── src/apuncli/
 │   ├── __main__.py          # entrypoint: main()
-│   ├── argumentos.py        # parser de comandos (argparse) y despacho
+│   ├── argumentos.py        # parser de comandos (argparse), despacho y códigos de salida
 │   ├── comandos.py          # lógica de cada comando (cmd_*)
 │   ├── interfaz.py          # menú interactivo (el 'apuncli' a secas)
 │   ├── db.py                # capa de datos SQLite (tablas, CRUD, búsqueda)
+│   ├── config.py            # esquema + validador estricto de acciones.json
+│   ├── motor.py             # ejecuta acciones sobre ficheros (simular, colisiones…)
+│   ├── ai.py                # proveedor IA (OpenAI-compatible) + acciones IA
 │   ├── formato.py           # Markdown <-> apunte, preguntas de test
 │   ├── recursos.py          # detectar/abrir URLs y ficheros adjuntos
 │   ├── temario.py           # generación de índices/temarios Markdown
 │   ├── testmotor.py         # motor del test automático
-│   ├── errores.py           # ApuncliError (errores amigables)
+│   ├── errores.py           # excepciones propias (ConfigError, SinRedError…)
 │   └── ui.py                # colores, editor y menús con flechas (termios/tty)
 └── tests/
     ├── test_db.py           # capa de datos
     ├── test_formato.py      # exportación / importación
     ├── test_novedades.py    # recursos, temario y test automático
-    └── test_cli.py          # comandos de extremo a extremo
+    ├── test_cli.py          # comandos de extremo a extremo
+    └── test_acciones.py     # pytest: config/motor/validador/IA (casos feos)
 ```
 
 El menú con flechas (en `ui.seleccionar`) usa `termios`/`tty`/`select` de la
@@ -472,17 +564,20 @@ Si quieres tocar el código (o proponer una función nueva):
 
 ## Tests
 
-Con `unittest` de la librería estándar:
+Todo corre en **carpetas temporales** o con `APUNCLI_DB` apuntando a una base de
+prueba: las pruebas no tocan nunca tus apuntes reales.
 
 ```bash
-python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s tests   # 62 tests (solo stdlib)
+python3 -m pytest tests/                # 82 tests (necesita pytest)
 ```
 
-Cubren la capa de datos (crear, editar, borrar, buscar, filtrar, estadísticas),
-el formato Markdown (análisis, generación y ciclo completo), los recursos, el
-temario, el test automático y los comandos del CLI de extremo a extremo,
-incluidos los casos de error (ids inválidos, apuntes inexistentes, títulos
-vacíos…).
+`tests/test_acciones.py` (pytest) cubre el camino feliz **y los casos feos**:
+JSON roto o con campos mal (señala el campo exacto), borrar sin filtro,
+nombres repetidos, carpetas inexistentes, colisiones al mover, ficheros con
+tildes y espacios, IA sin clave, sin red y con proveedor simulado. Las
+ejecuta **GitHub Actions en ubuntu, windows y macos** en cada push
+([.github/workflows/tests.yml](.github/workflows/tests.yml)).
 
 ## Licencia
 

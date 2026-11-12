@@ -11,3 +11,4 @@ venv/
 
 .env
 ia.env
+.opencode/node_modules/

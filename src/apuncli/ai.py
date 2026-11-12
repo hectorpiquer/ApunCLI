@@ -66,6 +66,10 @@ def leer_env(ruta: Optional[Path] = None) -> dict:
 class ProveedorIA:
     """Cliente mínimo de la API /chat/completions (como la de OpenAI/Ollama)."""
 
+    REINTENTOS = 2          # los modelos del centro a veces tardan en despertar
+    TIMEOUT_PETICION = 60   # segundos por intento
+    TIMEOUT_COMPROBACION = 6
+
     def __init__(self, url: Optional[str] = None, clave: Optional[str] = None,
                  modelo: Optional[str] = None, env_ruta: Optional[Path] = None):
         valores = leer_env(env_ruta)
@@ -96,18 +100,23 @@ class ProveedorIA:
         peticion.add_header("Content-Type", "application/json")
         if self.clave:
             peticion.add_header("Authorization", f"Bearer {self.clave}")
-        try:
-            with urllib.request.urlopen(peticion, timeout=60) as respuesta:
-                datos = json.loads(respuesta.read().decode("utf-8"))
-        except urllib.error.HTTPError as error:
-            if error.code in (401, 403):
-                raise SinRedError("La clave de IA no es válida (HTTP "
-                                  f"{error.code}). Revisa APUNCLI_IA_CLAVE en .env.")
-            raise SinRedError(f"El proveedor de IA respondió mal (HTTP {error.code}).")
-        except (urllib.error.URLError, TimeoutError, OSError):
-            raise SinRedError(f"No hay conexión con el proveedor de IA en {self.url}. "
-                              "Sin red la CLI sigue funcionando con las acciones "
-                              "que no necesitan IA.")
+        for intento in range(self.REINTENTOS):
+            tiempo = self.TIMEOUT_PETICION if intento == 0 else 8
+            try:
+                with urllib.request.urlopen(peticion, timeout=tiempo) as respuesta:
+                    datos = json.loads(respuesta.read().decode("utf-8"))
+                break
+            except urllib.error.HTTPError as error:
+                if error.code in (401, 403):
+                    raise SinRedError("La clave de IA no es válida (HTTP "
+                                      f"{error.code}). Revisa APUNCLI_IA_CLAVE en .env.")
+                raise SinRedError(f"El proveedor de IA respondió mal (HTTP {error.code}).")
+            except (urllib.error.URLError, TimeoutError, OSError):
+                if intento + 1 < self.REINTENTOS:
+                    continue
+                raise SinRedError(f"No hay conexión con el proveedor de IA en {self.url}. "
+                                  "Sin red la CLI sigue funcionando con las acciones "
+                                  "que no necesitan IA.")
         try:
             return datos["choices"][0]["message"]["content"].strip()
         except (KeyError, IndexError):
@@ -124,6 +133,9 @@ class ProveedorIA:
                                        largo_max=10)
         except SinRedError as error:
             return PruebaIA(False, self._donde, self.url, self.modelo, str(error))
+        except Exception as error:  # noqa: BLE001 — comprobar-ia nunca explota
+            return PruebaIA(False, self._donde, self.url, self.modelo,
+                            f"error inesperado: {error}")
         return PruebaIA(True, self._donde, self.url, self.modelo,
                         f"respuesta: {respuesta[:40]}")
 

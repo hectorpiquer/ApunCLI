@@ -68,7 +68,8 @@ class Motor:
         destino = accion.destino
         if destino is None:
             raise FalloEjecucion("La acción de mover necesita 'destino'.")
-        destino.mkdir(parents=True, exist_ok=True)
+        if not simular:
+            destino.mkdir(parents=True, exist_ok=True)
         for fichero in self._seleccion(origen, accion, resultado):
             final = self._sin_colision(destino / fichero.name)
             if simular:
@@ -85,7 +86,8 @@ class Motor:
         destino = accion.destino
         if destino is None:
             raise FalloEjecucion("La acción de copiar necesita 'destino'.")
-        destino.mkdir(parents=True, exist_ok=True)
+        if not simular:
+            destino.mkdir(parents=True, exist_ok=True)
         for fichero in self._seleccion(origen, accion, resultado):
             final = self._sin_colision(destino / fichero.name)
             if simular:
