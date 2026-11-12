@@ -206,10 +206,13 @@ def test_duplicados_por_hash(tmp_path):
     assert "a.txt" in resultado.hechos[0] and "b.txt" in resultado.hechos[0]
 
 
-def test_hash_de_estable():
+def test_hash_de_estable(tmp_path):
     assert hash_de.__doc__  # existe
-    a = Path("/dev/null")
-    assert hash_de(a) == hash_de(a)
+    fichero = fichero_de(tmp_path / "a.txt", "mismo contenido")
+    vacio = tmp_path / "vacio.txt"
+    vacio.write_bytes(b"")
+    assert hash_de(fichero) == hash_de(fichero)      # estable
+    assert hash_de(fichero) != hash_de(vacio)         # distingue contenidos
 
 
 # ---------------------------------------------------------------------------

@@ -24,11 +24,3 @@ jobs:
           python -m pytest tests/ -v
         env:
           APUNCLI_DB: ${{ runner.temp }}/apuncli-ci.db
-      - name: volcar log si falla (quitar tras el primer verde)
-        if: failure()
-        run: |
-          python -m pytest tests/ --tb=long -rf -p no:cacheprovider
-          python -m pytest tests/test_acciones.py -x --tb=long -o addopts= --full-trace
-        env:
-          APUNCLI_DB: ${{ runner.temp }}/apuncli-ci.db
-          PYTHONFAULTHANDLER: "1"

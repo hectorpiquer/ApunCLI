@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 _URL_RE = re.compile(r"https?://[^\s<>\"')\]]+")
-_RUTA_RE = re.compile(r"(?<!\S)((?:[~/][\w.\-/]*|[\w.\-/]+\.[A-Za-z0-9]{1,10}))(?![\w.\-/])")
+_RUTA_RE = re.compile(r"(?<!\S)((?:[~/][\w.\-/\\]*|[A-Za-z]:[\\/][\w.\-/\\]*|[\w.\-/]+\.[A-Za-z0-9]{1,10}))(?![\w.\-/\\])")
 
 _EXTENSIONES = {
     ".pdf": "documento",
