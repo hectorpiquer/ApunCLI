@@ -723,13 +723,10 @@ def _ejecutar_accion_ia(conexion, accion, carpeta: Optional[str],
                            "(mira los ids con 'apuncli listar')")
     apunte = db.obtener_apunte(conexion, int(carpeta))
     texto = f"{apunte['titulo']}\n\n{apunte['contenido'] or ''}"
-    try:
-        if accion.tipo == "resumir-ia":
-            salida = ai.accion_resumir(texto, proveedor)
-        else:
-            salida = ai.accion_generar_preguntas(texto, proveedor)
-    except SinRedError as error:
-        raise ApuncliError(str(error))
+    if accion.tipo == "resumir-ia":
+        salida = ai.accion_resumir(texto, proveedor)
+    else:
+        salida = ai.accion_generar_preguntas(texto, proveedor)
     if accion.tipo == "generar-preguntas-ia" and (si or ui.confirmar(
             "¿Guardar las preguntas generadas en el apunte "
             "(se añaden al final y entran en 'apuncli test')?")):

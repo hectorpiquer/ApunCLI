@@ -52,3 +52,31 @@ Resultado: `ai.py` con `SinRedError` y `comprobar()`.
 > salida claro."
 
 Resultado: suite pytest de casos feos en carpetas temporales.
+
+
+## 7. Semana 4: pruebas, mutación y release
+
+> "Antes de escribir las pruebas, dime qué fixtures en conftest.py garantizan que
+> ninguna prueba toca mis carpetas reales ni llama al servidor del centro. Casos
+> feos: JSON roto, borrar sin filtro, colisiones, IA sin clave/red/simulada."
+
+### La mutación que hice a propósito (paso 3)
+
+Saqué `destino.mkdir()` del `if not simular:` en `motor.py` (también creaba la
+carpeta al simular), guardé y pasé pytest. Se pusieron en rojo DOS pruebas:
+`test_simular_no_toca_nada` (pytest) y `test_ejecutar_simular_desde_la_orden_no_toca_el_disco`
+(CLI por fuera). Devuelto con `git checkout`, las 90 otra vez en verde.
+Conclusión: las pruebas protegen de verdad, no decoran.
+
+### Qué corregí de lo que hizo el agente
+
+- **CHANGELOG**: el borrador mencionaba funciones internas (`hash_de`) con
+  detalle de implementación; lo reescribí mirando a quien USA la herramienta.
+- **Tests de IA en la CI**: el agente los dejó sin aislar del todo y Windows
+  se colgaba/reintentaba contra direcciones reales. Fix: `conftest.py` con
+  `aislado` (autouse) + IP de documentación 192.0.2.1 + proxy falso.
+- **Rutas Windows**: la detección de ficheros no aceptaba `\` ni `~` en rutas
+  (`C:\Users\RUNNER~1\...`): era un fallo real multiplataforma que solo se
+  veía en Actions, no en mi Linux. Arreglado en `recursos.py` con su prueba.
+- **`test_hash_de_estable`**: usaba `/dev/null`, que no existe en Windows.
+  Reescrito con ficheros temporales.

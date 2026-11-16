@@ -1,44 +1,19 @@
 """Tests pytest del sistema de acciones: config, motor, validador y capa IA.
 
-Todo ocurre en carpetas temporales (tmp_path): nunca sobre ficheros reales.
-Las pruebas de sin-red bloquean la red con un proxy falso: cero tráfico real
-y cero cuelgues (sin eso, una conexión filtrada podría colgar el test).
+El aislamiento (carpeta temporal, sin ia.env, sin red) lo garantiza la fixture
+`aislado` de tests/conftest.py, que se aplica sola a TODAS las pruebas.
 """
 
 import os
-import sys
 import unittest as _unittest
 from datetime import datetime, timedelta
 from pathlib import Path
-
-_SRC = Path(__file__).resolve().parents[1] / "src"
-if "apuncli" not in sys.modules and str(_SRC) not in [str(p) for p in sys.path]:
-    sys.path.insert(0, str(_SRC))
 
 if "unittest" in globals():     # descubierto por unittest: no es su fichero
     raise _unittest.SkipTest("este fichero solo funciona con pytest")
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def _sin_red(posible_red_falsa, monkeypatch):
-    """Corta la red para TODOS los tests de este fichero."""
-    monkeypatch.setenv("HTTP_PROXY", posible_red_falsa)
-    monkeypatch.setenv("HTTPS_PROXY", posible_red_falsa)
-    monkeypatch.delenv("NO_PROXY", raising=False)
-
-
-@pytest.fixture
-def posible_red_falsa():
-    return "http://127.0.0.1:1"  # nada escucha aquí → el proxy falla al instante
-
-
-@pytest.fixture(autouse=True)
-def _sin_clave_ia(monkeypatch):
-    """Ningún test hereda la clave/modelo reales del ia.env del usuario."""
-    monkeypatch.setenv("APUNCLI_ENV", str(Path(__file__).parent / "inexistente.env"))
-    for clave in ("APUNCLI_IA_URL", "APUNCLI_IA_CLAVE", "APUNCLI_IA_MODELO"):
-        monkeypatch.delenv(clave, raising=False)
+from conftest import ProveedorFalso  # el mismo «modelo» que en el resto de tests
 
 from apuncli import motor as motor_mod
 from apuncli.config import AccionConfig, Configuracion, validar_esquema
@@ -110,6 +85,27 @@ def test_borrar_sin_filtro_no_pasa():
     with pytest.raises(ConfigError) as error:
         validar_esquema(datos)
     assert "acciones[0].filtro" in str(error.value)
+
+
+BUENA = {"nombre": "ordenar", "descripcion": "Mueve los PDF", "tipo": "mover",
+         "destino": "~/PDF"}
+
+
+@pytest.mark.parametrize(
+    "cambio, campo",
+    [
+        ({"tipo": "mober"}, "acciones[0].tipo"),
+        ({"nombre": "MAL NOMBRE"}, "acciones[0].nombre"),
+        ({"descripcion": None}, "acciones[0].descripcion"),
+        ({"filtro": {"patron": "*.tmp"}}, "acciones[0].filtro.patron"),
+    ],
+    ids=["tipo-inexistente", "nombre-malo", "sin-descripcion", "regex-rota"],
+)
+def test_el_error_dice_que_campo_falla(cambio, campo):
+    """El validador señala el campo exacto: 'acciones[0].tipo: …'."""
+    with pytest.raises(ConfigError) as error:
+        validar_esquema({"version": 1, "acciones": [BUENA | cambio]})
+    assert any(fallo.startswith(campo) for fallo in error.value.problemas), error.value.problemas
 
 
 def test_nombre_repetido():
@@ -243,24 +239,27 @@ def test_comprobar_ia_sin_servidor(tmp_path, monkeypatch):
     assert "192.0.2.1" in prueba.detalle or "conexión" in prueba.detalle
 
 
-class ProveedorFalso:
-    modelo = "falso"
+class PreguntasFalsas(ProveedorFalso):
+    """ProveedorFalso que imita el formato de las preguntas de examen."""
 
     def preguntar(self, consigna, texto, largo_max=16000):
         if "pregunta" in consigna:
             return ("- ¿Qué es una pila? => Es una estructura LIFO.\n"
                     "- ¿Y una cola? Es una estructura FIFO.")
-        return "- viñeta uno\n- viñeta dos"
+        return super().preguntar(consigna, texto, largo_max)
 
 
-def test_accion_resumir_con_falso():
+def test_accion_resumir_con_falso(proveedor_falso):
     from apuncli.ai import accion_resumir
-    assert "viñeta" in accion_resumir("texto largo", ProveedorFalso())
+    falso = proveedor_falso("- viñeta uno\n- viñeta dos")
+    assert "viñeta" in accion_resumir("texto largo", falso)
+    # la prueba que prueba: al modelo falso le llegó el documento
+    assert falso.preguntas == ["texto largo"]
 
 
 def test_accion_preguntas_normaliza_formato():
     from apuncli.ai import _SEP_PREGUNTA, accion_generar_preguntas
-    salida = accion_generar_preguntas("texto", ProveedorFalso())
+    salida = accion_generar_preguntas("texto", PreguntasFalsas())
     lineas = salida.splitlines()
     assert len(lineas) >= 2
     # cada pregunta normalizada empieza por '¿' (los guiones se quitan)

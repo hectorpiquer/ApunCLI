@@ -24,4 +24,10 @@ class FalloEjecucion(ApuncliError):
 
 
 class SinRedError(ApuncliError):
-    """No hay proveedor de IA disponible (sin red o sin clave)."""
+    """No hay proveedor de IA disponible (sin red o sin clave).
+
+    Su código de salida es 4: así un script distingue «fallo normal» (1) de
+    «la IA no está, pero todo lo demás sigue funcionando».
+    """
+
+    codigo = 4
