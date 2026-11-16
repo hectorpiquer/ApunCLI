@@ -2,6 +2,22 @@
 
 Formato *Keep a Changelog*; versiones según *Semantic Versioning*.
 
+## [1.0.1] · 2026-11-16
+
+### Añadido
+- `tests/conftest.py`: la caja de arena completa (carpeta temporal, HOME y
+  USERPROFILE redirigidos, IA y red anuladas) aplicada a TODAS las pruebas.
+- Las acciones con IA sin disponible salen con **código de salida 4** y un
+  aviso de que el resto de la CLI sigue funcionando.
+- Pruebas de la CLI desde fuera (una por código de salida: 0 · 1 · 2 · 3 · 4),
+  `ejecutar --simular` probado a través de la orden, y casos feos del validador
+  con `@pytest.mark.parametrize`.
+- `scripts/revisar.sh` completo: el diff entra por stdin, `timeout 180` y el
+  veredicto del revisor se convierte en el código de salida.
+
+### Cambiado
+- Sin cambios de comportamiento para el usuario: sigue `apuncli <orden>`.
+
 ## [1.0.0] · 2026-11-12
 
 Primera release completa del proyecto.

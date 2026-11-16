@@ -272,7 +272,8 @@ los tipos destructivos preguntan salvo con `--si`, y **nunca se pisa un
 fichero existente** (se añade `-1`, `-2`…).
 
 **Códigos de salida**: `0` bien · `1` fallo al ejecutar · `2` error de uso ·
-`3` configuración inválida (con `apuncli validar` o JSON roto). Ejemplo de
+`3` configuración inválida · `4` la IA no está disponible (el resto de la CLI
+sigue funcionando: lo diagnostica `apuncli comprobar-ia`). Ejemplo de
 caso feo controlado:
 
 ```bash
@@ -569,14 +570,20 @@ prueba: las pruebas no tocan nunca tus apuntes reales.
 
 ```bash
 python3 -m unittest discover -s tests   # 62 tests (solo stdlib)
-python3 -m pytest tests/                # 82 tests (necesita pytest)
+python3 -m pytest tests/                # 94 tests (necesita pytest)
 ```
 
-`tests/test_acciones.py` (pytest) cubre el camino feliz **y los casos feos**:
-JSON roto o con campos mal (señala el campo exacto), borrar sin filtro,
-nombres repetidos, carpetas inexistentes, colisiones al mover, ficheros con
-tildes y espacios, IA sin clave, sin red y con proveedor simulado. Las
-ejecuta **GitHub Actions en ubuntu, windows y macos** en cada push
+La fixture `aislado` de [tests/conftest.py](tests/conftest.py) (autouse) es la
+pared de la caja de arena: cada prueba vive en una carpeta temporal con su
+`HOME`, sin leer tu `ia.env` y sin red. Las pruebas (pytest) cubren el camino
+feliz **y los casos feos**: JSON roto o con campos mal (`parametrize`, señala
+el campo exacto), borrar sin filtro, colisiones al mover, ficheros con tildes,
+la CLI por fuera con un código de salida por prueba (0/1/2/3/4) y la IA con un
+`ProveedorFalso` (sin red, sin clave, sin tokens). Audita las pruebas a lo
+bruto: saca el `mkdir` del `if` en `motor.py` y verás cómo se ponen en rojo
+las dos pruebas de `--simular` (paso 3 de la Sesión 4; contado en
+[docs/prompts.md](docs/prompts.md)). Todo se ejecuta en **GitHub Actions en
+ubuntu, windows y macos** en cada push
 ([.github/workflows/tests.yml](.github/workflows/tests.yml)).
 
 ## Licencia

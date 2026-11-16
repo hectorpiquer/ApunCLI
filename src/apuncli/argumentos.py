@@ -5,7 +5,7 @@ import sqlite3
 import sys
 
 from . import __version__, comandos, db, ui
-from .errores import ApuncliError, ConfigError
+from .errores import ApuncliError, ConfigError, SinRedError
 
 AYUDA_PRINCIPAL = """\
 apuncli — gestor de apuntes de estudio desde la terminal
@@ -277,6 +277,12 @@ def ejecutar(argv=None) -> int:
             return 0
         with conexion:
             return _despachar(conexion, args, parser) or 0
+    except SinRedError as error:
+        # código 4: la IA no está disponible, pero la CLI sigue viva sin ella
+        print(f"aviso: {error}", file=sys.stderr)
+        print("  sin IA la herramienta sigue funcionando con todo lo demás "
+              "(prueba 'apuncli comprobar-ia' para el diagnóstico).", file=sys.stderr)
+        return 4
     except ConfigError as error:
         print("error de configuración:", file=sys.stderr)
         for problema in error.problemas:
