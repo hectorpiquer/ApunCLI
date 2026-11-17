@@ -2,7 +2,7 @@
 
 Formato *Keep a Changelog*; versiones según *Semantic Versioning*.
 
-## [1.0.1] · 2026-11-16
+## [1.0.1] · 2026-11-17
 
 ### Añadido
 - `tests/conftest.py`: la caja de arena completa (carpeta temporal, HOME y
