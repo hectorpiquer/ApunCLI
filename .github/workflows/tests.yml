@@ -7,6 +7,7 @@ on:
 
 jobs:
   pruebas:
+    timeout-minutes: 10            # si la máquina va fatal, falla rápido en vez de colgarse
     strategy:
       fail-fast: false
       matrix:
@@ -17,6 +18,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Esperar si macOS va saturado (capacidad de runners arm64)
+        if: matrix.os == 'macos-latest'
+        run: sleep 5
       - name: pytest (acciones + CLI)
         run: |
           python -m pip install --upgrade pip
