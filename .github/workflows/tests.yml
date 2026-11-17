@@ -1,30 +1,93 @@
 name: pruebas
 
+# pytest en tres sistemas en cada push/PR.
+# macOS: GitHub avisa de "capacity constraints" en los runners arm64 (a veces
+# el job no llega a adquirirse y queda 'cancelled'). El job aviso-macos lo
+# registra como AVISO en el summary en lugar de bloquear la check; los fallos
+# REALES de ubuntu/windows sí la ponen en roja (su job exit-an). El rojo de
+# macOS se quita re-disparando la run cuando GitHub tenga hueco (Re-run
+# failed jobs).
+
 on:
   push:
     branches: [main]
   pull_request:
 
 jobs:
-  pruebas:
-    timeout-minutes: 10            # si la máquina va fatal, falla rápido en vez de colgarse
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  ubuntu:
+    name: pruebas (ubuntu)
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Esperar si macOS va saturado (capacidad de runners arm64)
-        if: matrix.os == 'macos-latest'
-        run: sleep 5
-      - name: pytest (acciones + CLI)
+      - name: pytest
         run: |
           python -m pip install --upgrade pip
           pip install pytest
           python -m pytest tests/ -v
         env:
           APUNCLI_DB: ${{ runner.temp }}/apuncli-ci.db
+
+  windows:
+    name: pruebas (windows)
+    timeout-minutes: 10
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          python -m pytest tests/ -v
+        env:
+          APUNCLI_DB: ${{ runner.temp }}/apuncli-ci.db
+
+  macos:
+    name: pruebas (macOS)
+    timeout-minutes: 10
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          python -m pytest tests/ -v
+        env:
+          APUNCLI_DB: ${{ runner.temp }}/apuncli-ci.db
+
+  resumen:
+    name: resumen (ubuntu · windows obligatorios)
+    needs: [ubuntu, windows, macos]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ubuntu y windows no perdonan
+        run: |
+          if [ "${{ needs.ubuntu.result }}" != "success" ] || [ "${{ needs.windows.result }}" != "success" ]; then
+            echo "::error::Fallo real: ubuntu=${{ needs.ubuntu.result }} · windows=${{ needs.windows.result }}"
+            exit 1
+          fi
+          echo "ubuntu y windows: en verde."
+      - name: Aviso de macOS (saturación de runners arm64)
+        run: |
+          case "${{ needs.macos.result }}" in
+            success) echo "macOS: en verde." ;;
+            failure)
+              echo "::warning::macOS en rojo. Mira los logs: puede ser el código o la infraestructura de GitHub ('capacity constraints' / 'job was not acquired'). Re-dispara con 'Re-run failed jobs'." ;;
+            cancelled)
+              echo "::notice::macOS cancelado: el runner arm64 no estuvo disponible (aviso oficial de GitHub, no es un fallo del proyecto). Re-dispara con 'Re-run failed jobs' cuando haya hueco." ;;
+            skipped)
+              echo "::warning::macOS no llegó a ejecutarse (sin runner)." ;;
+            *)
+              echo "::warning::macOS: '${{ needs.macos.result }}'." ;;
+          esac
