@@ -781,7 +781,8 @@ def cmd_comprobar_ia(como_json: bool = False) -> int:
     prueba = ai.ProveedorIA().comprobar()
     if como_json:
         print(json.dumps({"disponible": prueba.disponible, "proveedor": prueba.proveedor,
-                          "modelo": prueba.modelo, "detalle": prueba.detalle},
+                          "modelo": prueba.modelo, "origen": prueba.origen,
+                          "detalle": prueba.detalle},
                          ensure_ascii=False, indent=2))
         return 0 if prueba.disponible else 1
     estado = ui.destacado("✅ IA disponible") if prueba.disponible else ui.tenue("⚠️  IA no disponible")
