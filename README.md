@@ -15,7 +15,7 @@ más allá del propio `apuncli`.
 ```bash
 $ apuncli demo            # crea 4 apuntes de ejemplo (etiqueta [demo])
 $ apuncli test            # te hace preguntas generadas de esos apuntes
-$ apuncli repasar         # modo ficha
+$ apuncli hoy             # qué te toca repasar según el espaciado
 $ apuncli limpiar -t demo --si   # y los quitas cuando quieras
 ```
 
@@ -491,11 +491,15 @@ subir el temario a GitHub (Markdown de toda la vida).
 
 ## Variables de entorno
 
-| Variable     | Para qué                                                        |
-| ------------ | --------------------------------------------------------------- |
-| `APUNCLI_DB` | Ruta alternativa de la base de datos (útil para pruebas).         |
-| `EDITOR`     | Editor que usan `abrir`, `crear --editor` y `editar --editor`.   |
-| `NO_COLOR`   | Si existe, desactiva los colores ANSI.                           |
+| Variable            | Para qué                                                     |
+| ------------------- | ------------------------------------------------------------ |
+| `APUNCLI_DB`        | Ruta alternativa de la base de datos (útil para pruebas).      |
+| `EDITOR`            | Editor que usan `abrir`, `crear --editor` y `editar --editor`. |
+| `NO_COLOR`          | Si existe, desactiva los colores ANSI.                         |
+| `APUNCLI_IA_URL`    | Servidor IA OpenAI-compatible (por defecto Ollama: `http://127.0.0.1:11434/v1`). |
+| `APUNCLI_IA_CLAVE`  | Clave del proveedor (vacía en Ollama). También en `ia.env`/`.env`. |
+| `APUNCLI_IA_MODELO` | Modelo (por defecto `qwen3:8b`).                               |
+| `APUNCLI_ENV`       | Fichero `.env` alternativo para la configuración de IA.        |
 
 ## Estructura del proyecto
 
@@ -505,7 +509,6 @@ apuncli/
 ├── acciones.json            # TUS acciones (fuera del código) · esquema en config.py
 ├── .env.example             # plantilla de la config de IA (ia.env/.env: ignorados)
 ├── CHANGELOG.md             # historia de versiones
-├── AGENTS.md · opencode.json · .opencode/   # reglas para el agente
 ├── docs/                    # spec, ADRs y prompts del proceso
 ├── .github/workflows/       # CI: ubuntu + windows + macos
 ├── src/apuncli/
@@ -560,7 +563,11 @@ Si quieres tocar el código (o proponer una función nueva):
    python3 -m unittest discover -s tests
    ```
 
-4. ¿Nuevo comando? La receta:
+4. ¿Nueva acción (sin tocar código)? Añádela a `acciones.json` con un tipo ya
+   conocido por `motor.py`, pasa `apuncli validar` y añade un caso en
+   `tests/test_acciones.py` (mira `test_mover_con_colision_no_pisa`).
+
+5. ¿Nuevo comando? La receta:
    - define la opción en `argumentos.py` (`sub.add_parser(...)`,
      `p.add_argument(...)`);
    - escribe la lógica en `comandos.py` (`def cmd_...`) apoyándote en `db.py`;
@@ -568,10 +575,10 @@ Si quieres tocar el código (o proponer una función nueva):
    - añade un test en `tests/` (mira `test_cli.py` para copiar el patrón);
    - si debe estar en el menú, añade su línea en `interfaz.py` (lista
      `ACCIONES` y su rama en `_ejecutar`).
-5. ¿Cambio en la base de datos? Añade la tabla/columna en `db.inicializar()`
+6. ¿Cambio en la base de datos? Añade la tabla/columna en `db.inicializar()`
    (usa `CREATE TABLE IF NOT EXISTS` para no romper bases de datos viejas) y
    prueba a abrir una base antigua con el código nuevo.
-6. Estilo: comentarios y strings de cara al usuario en español; ids y
+7. Estilo: comentarios y strings de cara al usuario en español; ids y
    funciones en snake_case; errores de usuario = `ApuncliError` (el CLI los
    imprime en rojo y devuelve código 1).
 
