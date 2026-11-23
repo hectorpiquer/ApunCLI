@@ -15,7 +15,7 @@ Tras una auditoría completa del proyecto (rúbrica + revisión de código).
 - 15 pruebas nuevas: los 6 `--json`, el fallo del motor por consola (código 1),
   base de datos sin permisos, config que es un directorio, `copiar`,
   `generar-temario` por orden, recurso con ruta inexistente y el repaso
-  espaciado con su migración. 109 tests pytest en total.
+  espaciado con su migración. 110 tests pytest en total.
 
 ### Arreglado
 - `apuncli` ya no suelta un traceback si `APUNCLI_DB` apunta a una ruta sin
