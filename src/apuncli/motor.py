@@ -2,9 +2,9 @@
 
 Reglas de seguridad del motor:
   · los ficheros que ya existen en el destino NUNCA se pisan (se añade -1, -2…)
-  · si una acción se rompe por la mitad, se intentan devolver los movimientos
-    a su sitio (transaccionalidad básica)
-  · en modo simulación no se toca nada, solo se informa
+  · NO hay transaccionalidad: si una acción destructiva se rompe por la mitad,
+    lo ya movido/copiado/borrado se queda así. Por eso --simular siempre primero
+  · en modo simulación no se toca nada (ni mkdir), solo se informa
 """
 
 import hashlib
@@ -69,7 +69,10 @@ class Motor:
         if destino is None:
             raise FalloEjecucion("La acción de mover necesita 'destino'.")
         if not simular:
-            destino.mkdir(parents=True, exist_ok=True)
+            try:
+                destino.mkdir(parents=True, exist_ok=True)
+            except OSError as error:
+                raise FalloEjecucion(f"No se pudo crear el destino {destino}: {error}")
         for fichero in self._seleccion(origen, accion, resultado):
             final = self._sin_colision(destino / fichero.name)
             if simular:
@@ -87,7 +90,10 @@ class Motor:
         if destino is None:
             raise FalloEjecucion("La acción de copiar necesita 'destino'.")
         if not simular:
-            destino.mkdir(parents=True, exist_ok=True)
+            try:
+                destino.mkdir(parents=True, exist_ok=True)
+            except OSError as error:
+                raise FalloEjecucion(f"No se pudo crear el destino {destino}: {error}")
         for fichero in self._seleccion(origen, accion, resultado):
             final = self._sin_colision(destino / fichero.name)
             if simular:
@@ -111,7 +117,11 @@ class Motor:
                 resultado.omitidos.append(fichero.name)
                 continue
             contador += 1
-            nuevo = self._aplicar_plantilla(accion.plantilla, fichero, contador)
+            try:
+                nuevo = self._aplicar_plantilla(accion.plantilla, fichero, contador)
+            except FileNotFoundError:
+                resultado.omitidos.append(f"{fichero.name} (desaparecido)")
+                continue
             if nuevo == fichero.name:
                 resultado.omitidos.append(fichero.name)
                 continue
@@ -135,6 +145,8 @@ class Motor:
             try:
                 fichero.unlink()
                 resultado.hechos.append(f"borrado {fichero.name}")
+            except FileNotFoundError:
+                resultado.omitidos.append(f"{fichero.name} (ya no existía)")
             except OSError as error:
                 raise FalloEjecucion(f"No se pudo borrar {fichero.name}: {error}")
 
@@ -171,7 +183,12 @@ class Motor:
                 resultado.omitidos.append(fichero.name)
                 continue
             if dias is not None:
-                edad = (datetime.now() - datetime.fromtimestamp(fichero.stat().st_mtime)).days
+                try:
+                    edad = (datetime.now()
+                            - datetime.fromtimestamp(fichero.stat().st_mtime)).days
+                except OSError:
+                    resultado.omitidos.append(f"{fichero.name} (sin acceso)")
+                    continue
                 if edad < dias:
                     resultado.omitidos.append(f"{fichero.name} ({edad} días)")
                     continue

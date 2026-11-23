@@ -29,12 +29,41 @@ def conectar() -> sqlite3.Connection:
     ruta = base_datos_ruta()
     directorio = os.path.dirname(ruta)
     if directorio:
-        os.makedirs(directorio, exist_ok=True)
-    conexion = sqlite3.connect(ruta)
+        try:
+            os.makedirs(directorio, exist_ok=True)
+        except OSError as error:
+            raise ApuncliError(
+                f"No se pudo crear la carpeta de la base de datos ({directorio}): {error}. "
+                "Revisa la variable APUNCLI_DB o los permisos.")
+    try:
+        conexion = sqlite3.connect(ruta)
+    except sqlite3.OperationalError as error:
+        raise ApuncliError(
+            f"No se pudo abrir la base de datos ({ruta}): {error}. "
+            "¿APUNCLI_DB apunta a un fichero o a una carpeta?")
     conexion.row_factory = sqlite3.Row
-    conexion.execute("PRAGMA foreign_keys = ON")
-    inicializar(conexion)
+    try:
+        conexion.execute("PRAGMA foreign_keys = ON")
+        inicializar(conexion)
+        _migrar_repeticion(conexion)
+    except sqlite3.Error as error:
+        conexion.close()
+        raise ApuncliError(
+            f"La base de datos ({ruta}) está dañada o es incompatible: {error}.")
     return conexion
+
+
+def _migrar_repeticion(conexion: sqlite3.Connection) -> None:
+    """Añade las columnas de repaso espaciado (SM-2 ligero) a bases viejas."""
+    existentes = {fila["name"] for fila in
+                  conexion.execute("PRAGMA table_info(apuntes)").fetchall()}
+    for columna in ("intervalo", "proximo_repaso"):
+        if columna not in existentes:
+            conexion.execute(f"ALTER TABLE apuntes ADD COLUMN {columna} INTEGER NOT NULL DEFAULT 0")
+    if "proximo_repaso" not in existentes:
+        # los apuntes ya existentes entran en la cola de hoy la primera vez
+        conexion.execute("UPDATE apuntes SET proximo_repaso = 1")
+    conexion.commit()
 
 
 def inicializar(conexion: sqlite3.Connection) -> None:
@@ -281,12 +310,34 @@ def buscar_apuntes(conexion: sqlite3.Connection, consulta: str) -> List[sqlite3.
     ).fetchall()
 
 
-def marcar_repasado(conexion: sqlite3.Connection, apunte_id: int) -> None:
+def marcar_repasado(conexion: sqlite3.Connection, apunte_id: int,
+                    hoy: Optional[int] = None) -> None:
+    """Suma un repaso y calcula el siguiente según SM-2 simplificado.
+
+    Intervalos: 1, 3, 7, 14, 21, 30 días y +30 a partir de ahí. La idea:
+    lo recién aprendido vuelve pronto; lo dominado se espacia.
+    """
+    fila = conexion.execute(
+        "SELECT veces_repasado FROM apuntes WHERE id = ?", (apunte_id,)).fetchone()
+    if fila is None:
+        return
+    numero = fila["veces_repasado"] + 1
+    intervalo = [1, 3, 7, 14, 21, 30][min(numero - 1, 5)] + (30 if numero > 6 else 0)
     conexion.execute(
-        "UPDATE apuntes SET veces_repasado = veces_repasado + 1 WHERE id = ?",
-        (apunte_id,),
+        "UPDATE apuntes SET veces_repasado = ?, intervalo = ?, proximo_repaso = ? "
+        "WHERE id = ?",
+        (numero, intervalo, (hoy if hoy is not None else 0) + intervalo, apunte_id),
     )
     conexion.commit()
+
+
+def cola_de_repaso(conexion: sqlite3.Connection, hoy: int) -> List[sqlite3.Row]:
+    """Apuntes que tocan hoy: nunca repasados, o con próximo repaso vencido."""
+    return conexion.execute(
+        "SELECT * FROM apuntes WHERE veces_repasado = 0 OR proximo_repaso <= ? "
+        "ORDER BY proximo_repaso ASC, id ASC",
+        (hoy,),
+    ).fetchall()
 
 
 # ---------------------------------------------------------------------------

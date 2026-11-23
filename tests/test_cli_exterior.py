@@ -42,12 +42,15 @@ def test_json_roto_sale_con_3_y_sin_traceback(escribir_config):
     assert "Traceback" not in texto
 
 
-def test_accion_que_no_existe_sale_con_1(escribir_config, descargas):
+def test_accion_que_no_existe_sale_con_3(escribir_config, descargas):
+    """Acción inexistente = problema de configuración: bloque ordenado y código 3."""
     ruta = escribir_config([BUENA])
     codigo, texto = ejecutar("--config", str(ruta), "ejecutar", "inventada",
                              str(descargas))
-    assert codigo == 1
+    assert codigo == 3
+    assert "error de configuración" in texto
     assert "inventada" in texto and "no existe" in texto
+    assert "Acciones disponibles" in texto  # te dice qué sí existe
 
 
 def test_opcion_que_no_existe_sale_con_2():

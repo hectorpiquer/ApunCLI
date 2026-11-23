@@ -93,9 +93,16 @@ def cmd_listar(conexion, asignatura: Optional[str], etiqueta: Optional[str],
 # Ver
 # ---------------------------------------------------------------------------
 
-def cmd_ver(conexion, apunte_id: int) -> None:
+def cmd_ver(conexion, apunte_id: int, como_json: bool = False) -> None:
     apunte = _apunte_obligatorio(conexion, apunte_id)
-    _imprimir_ficha(apunte, db.etiquetas_del_apunte(conexion, apunte_id), contenido=True)
+    etiquetas = db.etiquetas_del_apunte(conexion, apunte_id)
+    if como_json:
+        datos = dict(apunte)
+        datos["etiquetas"] = etiquetas
+        datos["recursos"] = [dict(r) for r in db.recursos_del_apunte(conexion, apunte_id)]
+        print(json.dumps(datos, ensure_ascii=False, indent=2))
+        return
+    _imprimir_ficha(apunte, etiquetas, contenido=True)
     recursos = db.recursos_del_apunte(conexion, apunte_id)
     if recursos:
         print()
@@ -112,6 +119,12 @@ def _imprimir_ficha(apunte, etiquetas: List[str], contenido: bool = False) -> No
     print(ui.tenue(f"  Asignatura: {apunte['asignatura'] or '-'}  ·  "
                    f"Creado: {apunte['creado']}  ·  Modificado: {apunte['modificado']}  ·  "
                    f"Repasado: {apunte['veces_repasado']} veces"))
+    try:
+        intervalo = apunte["intervalo"]
+    except (IndexError, KeyError):
+        intervalo = 0
+    if intervalo:
+        print(ui.tenue(f"  Repaso espaciado: intervalo {intervalo} días"))
     if etiquetas:
         print(ui.tenue("  Etiquetas:  " + " ".join(f"[{e}]" for e in etiquetas)))
     if contenido:
@@ -124,8 +137,11 @@ def _imprimir_ficha(apunte, etiquetas: List[str], contenido: bool = False) -> No
 # Buscar
 # ---------------------------------------------------------------------------
 
-def cmd_buscar(conexion, consulta: str) -> None:
+def cmd_buscar(conexion, consulta: str, como_json: bool = False) -> None:
     apuntes = db.buscar_apuntes(conexion, consulta)
+    if como_json:
+        print(json.dumps([dict(a) for a in apuntes], ensure_ascii=False, indent=2))
+        return
     ui.titulo_de_seccion(f"Resultados para '{consulta}' ({len(apuntes)})")
     if not apuntes:
         print("Nada encontrado. Prueba con otras palabras.")
@@ -327,17 +343,30 @@ def _dividir_bloques_markdown(texto: str) -> List[str]:
 # Repasar
 # ---------------------------------------------------------------------------
 
+def _dia_de_hoy() -> int:
+    from datetime import date
+    return date.today().toordinal()
+
+
 def cmd_repasar(conexion, asignatura: Optional[str], etiqueta: Optional[str],
-                numero: int) -> None:
+                numero: int, solo_cola: bool = False) -> None:
     apuntes = db.listar_apuntes(conexion, asignatura=asignatura, etiqueta=etiqueta)
     if not apuntes:
         raise ApuncliError("No hay apuntes para repasar.")
-    por_repasar = [a for a in apuntes if a["veces_repasado"] == 0]
-    cola = por_repasar if len(por_repasar) >= numero else apuntes
+    if solo_cola:
+        cola = [a for a in db.cola_de_repaso(conexion, _dia_de_hoy())
+                if not asignatura or a["asignatura"] == asignatura]
+        if not cola:
+            print(ui.destacado("Nada que repasar hoy. ¡El siguiente toca pronto!"))
+            return
+    else:
+        por_repasar = [a for a in apuntes if a["veces_repasado"] == 0]
+        cola = por_repasar if len(por_repasar) >= numero else apuntes
     seleccion = cola[:numero]
 
     print(ui.destacado(f"Modo repaso: {len(seleccion)} apunte(s). "
                        "Lee el título, recuerda el contenido y pulsa Enter."))
+    hoy = _dia_de_hoy()
     for i, apunte in enumerate(seleccion, 1):
         print()
         print(ui.subrayado(f"─ Apunte {i}/{len(seleccion)} · [{apunte['id']}] {apunte['titulo']} "
@@ -347,7 +376,9 @@ def cmd_repasar(conexion, asignatura: Optional[str], etiqueta: Optional[str],
         except EOFError:
             break
         print((apunte["contenido"] or "(vacío)").strip())
-        db.marcar_repasado(conexion, apunte["id"])
+        db.marcar_repasado(conexion, apunte["id"], hoy=hoy)
+        actualizado = db.obtener_apunte(conexion, apunte["id"])
+        print(ui.tenue(f"   → siguiente repaso en {actualizado['intervalo']} días"))
     print()
     print(ui.destacado("✔ Repaso terminado. ¡Bien hecho!"))
 
@@ -364,6 +395,9 @@ def cmd_recurso(conexion, accion: str, apunte_id: Optional[int],
             raise ApuncliError("Uso: apuncli recurso anadir <apunte> <url-o-fichero> [--nombre 'X']")
         _apunte_obligatorio(conexion, apunte_id)
         ruta = os.path.abspath(os.path.expanduser(url)) if not recursos_mod.es_url(url) else url
+        if not recursos_mod.es_url(url) and not os.path.exists(ruta):
+            raise ApuncliError(f"El fichero no existe: {ruta}. "
+                               "Un recurso debe existir cuando se añade (o usa una URL).")
         id_recurso = db.adjuntar_recurso(conexion, apunte_id, ruta,
                                          nombre or recursos_mod.nombre_para(url))
         print(f"✔ Recurso añadido (id {id_recurso}) al apunte {apunte_id}.")
@@ -457,7 +491,7 @@ def cmd_test(conexion, asignatura: Optional[str], etiqueta: Optional[str],
         nota = round(10 * correctas / respondidas, 1)
         ui.titulo_de_seccion(f"Resultado: {correctas}/{respondidas} · nota {nota}/10")
         if falladas:
-            ui.tenue(f"Has fallado {len(falladas)}: repasálias con 'apuncli repasar'.")
+            ui.tenue(f"Has fallado {len(falladas)}: repásalas con 'apuncli repasar'.")
     else:
         print("Test sin respuestas. ¡Otra vez otro día!")
 
@@ -513,8 +547,11 @@ def cmd_asignaturas(conexion) -> None:
         print(ui.tenue("(sin asignaturas)"))
 
 
-def cmd_stats(conexion) -> None:
+def cmd_stats(conexion, como_json: bool = False) -> None:
     datos = db.estadisticas(conexion)
+    if como_json:
+        print(json.dumps(datos, ensure_ascii=False, indent=2))
+        return
     ui.titulo_de_seccion("Estadísticas de estudio")
     print(f"  Apuntes totales:        {datos['total']}")
     print(f"  Palabras escritas:      {datos['palabras']}")
@@ -537,16 +574,17 @@ def cmd_hoy(conexion) -> None:
         return
 
     sin_repasar = [a for a in apuntes if a["veces_repasado"] == 0]
+    pendientes_hoy = db.cola_de_repaso(conexion, _dia_de_hoy())
     recientes = sorted(apuntes, key=lambda a: a["modificado"], reverse=True)[:3]
     con_recuerdos = [a for a in apuntes
                      if testmotor.preguntas_manuales(a["contenido"])]
 
     print()
+    nombres = ", ".join(f"[{a['id']}] {a['titulo']}" for a in pendientes_hoy[:5])
+    sufijo = "…" if len(pendientes_hoy) > 5 else ""
+    print(f"  🧠 Te tocan hoy ({len(pendientes_hoy)}): {nombres or 'ninguno. ¡Repasado!'}{sufijo}")
     if sin_repasar:
-        nombres = ", ".join(f"[{a['id']}] {a['titulo']}" for a in sin_repasar[:5])
-        print(f"  🔴 Todavía no repasados ({len(sin_repasar)}): {nombres}")
-    else:
-        print("  ✅ Lo tienes todo repasado al menos una vez. ¡Bien!")
+        print(f"  🔴 Nunca repasados ({len(sin_repasar)}) — entran primero en la cola")
 
     if con_recuerdos:
         print(f"  📝 Con preguntas para test: {len(con_recuerdos)} apuntes. "
@@ -559,7 +597,8 @@ def cmd_hoy(conexion) -> None:
                   f"({apunte['asignatura'] or '—'}) · modificado {apunte['modificado']}")
 
     print()
-    print("  Sugerencia: " + ("apuncli repasar -n 5" if sin_repasar else "apuncli test"))
+    sugerencia = "apuncli repasar --cola" if pendientes_hoy else "apuncli test"
+    print("  Sugerencia: " + sugerencia)
 
 
 # ---------------------------------------------------------------------------
@@ -598,7 +637,8 @@ def cmd_respaldo(conexion, sub: str, ruta_fichero: Optional[str]) -> None:
 # ---------------------------------------------------------------------------
 
 COMPLETADOR_BASH = """\
-# Autocompletado de apuncli (añade esta línea a ~/.bashrc):
+# Autocompletado de apuncli (solo bash; zsh/PowerShell: sin guion, a tu ritmo).
+# Añade esta línea a ~/.bashrc:
 #   eval "$(apuncli completar)"
 _apuncli_completar() {
     local opcion="${COMP_WORDS[1]}"

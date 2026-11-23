@@ -73,6 +73,10 @@ $ apuncli buscar "hijos"
 
 ## Instalación
 
+> Nota: esta CLI usa **solo la librería estándar** de Python (≥ 3.10); `uv` o
+> `pipx` solo hacen de instaladores. En cualquier caso el comando `apuncli`
+> queda en tu PATH global.
+
 ```bash
 # con uv o pipx (recomendado): instalable como comando global desde GitHub
 uv tool install git+https://github.com/hectorpiquer/ApunCLI.git
@@ -160,23 +164,23 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | Comando            | Para qué                                          | Ejemplo                              |
 | ------------------ | ------------------------------------------------- | ------------------------------------ |
 | `crear`            | Crear un apunte                                   | `apuncli crear "Tema 1" -a ED -t examen -c "..."` |
-| `listar` (`ls`)    | Ver todos los apuntes (filtrable)                 | `apuncli ls -a ED -t tema1`          |
-| `ver`              | Ver un apunte completo                            | `apuncli ver 3`                      |
-| `buscar`           | Buscar por texto en título y contenido            | `apuncli buscar "punteros"`          |
+| `listar` (`ls`)    | Ver todos los apuntes (filtrable, `--json`)       | `apuncli ls -a ED -t tema1`          |
+| `ver`              | Ver un apunte completo (`--json` con recursos)    | `apuncli ver 3`                      |
+| `buscar`           | Buscar por texto (`--json`)                       | `apuncli buscar "punteros"`          |
 | `editar`           | Cambiar título, contenido, asignatura o etiquetas | `apuncli editar 3 -T "Nuevo título"` |
 | `borrar` (`rm`)    | Borrar un apunte (pide confirmación)              | `apuncli borrar 3`                   |
 | `limpiar`          | Borrar en bloque una asignatura o etiqueta        | `apuncli limpiar -t sin-usar`        |
 | `abrir`            | Abrir un apunte en tu editor (`$EDITOR`)          | `apuncli abrir 3`                    |
 | `exportar`         | Exportar a Markdown (salida estándar)             | `apuncli exportar --todos > apuntes.md` |
 | `importar`         | Importar desde un Markdown                        | `apuncli importar apuntes.md`        |
-| `repasar`          | Repaso tipo ficha, uno a uno                      | `apuncli repasar -a ED -n 10`        |
+| `repasar`          | Repaso tipo ficha, con cola espaciada (`--cola`)  | `apuncli repasar --cola`             |
 | `test`             | Test automático a partir de tus apuntes           | `apuncli test -t examen`             |
 | `recurso` (`rec`)  | Adjuntar/abrir enlaces y ficheros a un apunte     | `apuncli recurso anadir 3 https://…` |
 | `temario`          | Índice Markdown completo (para imprimir o PDF)    | `apuncli temario -a ED > temario.md` |
 | `hoy`              | Plan rápido: qué estudiar hoy                     | `apuncli hoy`                        |
 | `etiquetas`        | Ver etiquetas; o añadir/quitar las de un apunte   | `apuncli etiquetas --anadir 3 repaso` |
 | `asignaturas`      | Ver las asignaturas existentes                    | `apuncli asignaturas`                |
-| `stats`            | Estadísticas de estudio                           | `apuncli stats`                      |
+| `stats`            | Estadísticas de estudio (`--json`)                | `apuncli stats`                      |
 | `respaldo` (`backup`) | Copia de seguridad y restauración               | `apuncli respaldo hacer`             |
 | `completar`        | Configurar el autocompletado (TAB)                | `eval "$(apuncli completar)"`         |
 | `demo`             | Apuntes de ejemplo para probarlo todo             | `apuncli demo`                       |
@@ -186,7 +190,9 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | `comprobar-ia`     | Probar la conexión con el modelo de IA            | `apuncli comprobar-ia`               |
 
 Todos los comandos aceptan `--help` para ver sus opciones, por ejemplo
-`apuncli crear --help`.
+`apuncli crear --help`. La salida **para máquinas** (`--json`) está disponible
+en `listar`, `ver`, `buscar`, `stats`, `acciones`, `ejecutar` y
+`comprobar-ia`: color fuera, JSON dentro, y `jq` puede con ella.
 
 ### `crear` — las cuatro formas de dar contenido
 
@@ -388,18 +394,21 @@ apuncli recurso borrar 2
 sean un hub de estudio: el texto, el PDF del profe y la web de referencia,
 todo en el mismo sitio.
 
-## Modo repaso
+## Modo repaso (con repetición espaciada)
 
 `repasar` muestra los apuntes **uno a uno**: primero el título, pulsas Enter,
-y entonces ves el contenido. Prioriza los apuntes que aún no has repasado:
+y entonces ves el contenido. Cada repaso **programa el siguiente** con un
+SM-2 simplificado (1, 3, 7, 14, 21, 30 y luego +30 días): lo recién aprendido
+vuelve pronto, lo dominado se espacia.
 
 ```bash
-apuncli repasar            # 5 apuntes, prioriza no repasados
-apuncli repasar -a ED -n 10
+apuncli repasar            # 5 apuntes (prioriza los que nunca repasaste)
+apuncli repasar --cola     # solo lo que TOCA HOY según el espaciado
+apuncli hoy                # te dice cuántos tocan y con qué intervalo
 ```
 
-Cada apunte que ves suma una vez a su contador de repasos (lo ves en
-`apuncli ver` y en `stats`).
+El intervalo de cada apunte se ve en `apuncli ver` y las bases antiguas se
+migran solas a la primera apertura.
 
 ## Test automático
 
@@ -519,7 +528,10 @@ apuncli/
     ├── test_formato.py      # exportación / importación
     ├── test_novedades.py    # recursos, temario y test automático
     ├── test_cli.py          # comandos de extremo a extremo
-    └── test_acciones.py     # pytest: config/motor/validador/IA (casos feos)
+    ├── test_acciones.py     # pytest: config/motor/validador/IA (casos feos)
+    ├── test_cli_exterior.py # pytest: la CLI por fuera (códigos 0-4)
+    ├── test_auditoria.py    # pytest: auditoría v1.0.2 (json, rutas, espaciado)
+    └── conftest.py          # la caja de arena de pytest
 ```
 
 El menú con flechas (en `ui.seleccionar`) usa `termios`/`tty`/`select` de la
@@ -570,7 +582,7 @@ prueba: las pruebas no tocan nunca tus apuntes reales.
 
 ```bash
 python3 -m unittest discover -s tests   # 62 tests (solo stdlib)
-python3 -m pytest tests/                # 94 tests (necesita pytest)
+python3 -m pytest tests/                # 110 tests (necesita pytest)
 ```
 
 La fixture `aislado` de [tests/conftest.py](tests/conftest.py) (autouse) es la

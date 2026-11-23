@@ -12,3 +12,9 @@ venv/
 .env
 ia.env
 .opencode/node_modules/
+
+# desarrollo local (no forma parte de la herramienta)
+opencode.json
+AGENTS.md
+.opencode/
+docs/prompts.md

@@ -267,3 +267,22 @@ def test_accion_preguntas_normaliza_formato():
     # la respuesta suelta se pega a su pregunta (una línea = pregunta + respuesta)
     assert "FIFO" in lineas[-1]
     assert lineas[0].count(_SEP_PREGUNTA) == 1
+
+
+def test_borrar_fichero_entre_listado_y_accion_no_rompe(tmp_path, monkeypatch):
+    """Un .tmp que desaparece a mitad de la acción se omite, no revienta."""
+    viejo = fichero_de(tmp_path / "viejo.tmp", edad_dias=40)
+    accion_borrar = accion(tipo="borrar",
+                           filtro={"patron": r"\.tmp$", "mas_antiguo_que_dias": 30})
+    motor = Motor()
+    original = motor._seleccion
+
+    def seleccion_con_trampa(o, a, r):
+        ficheros = original(o, a, r)
+        ficheros[0].unlink()                 # desaparecido tras el listado
+        return ficheros
+
+    monkeypatch.setattr(motor, "_seleccion", seleccion_con_trampa)
+    resultado = motor.ejecutar(accion_borrar, tmp_path)
+    assert resultado.tocados == 0
+    assert any("ya no existía" in o for o in resultado.omitidos)

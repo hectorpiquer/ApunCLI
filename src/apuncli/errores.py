@@ -16,7 +16,18 @@ class ConfigError(ApuncliError):
 
 
 class AccionNoValida(ApuncliError):
-    """La acción pedida no existe en la configuración."""
+    """La acción pedida no existe en la configuración.
+
+    Comparte código de salida con ConfigError (3): las dos son problemas de
+    configuración. Su problema individual viaja en .problemas, para que el
+    mensaje siga el mismo bloque ordenado que un JSON inválido.
+    """
+
+    codigo = 3
+
+    def __init__(self, mensaje: str):
+        super().__init__(mensaje)
+        self.problemas = [mensaje]
 
 
 class FalloEjecucion(ApuncliError):

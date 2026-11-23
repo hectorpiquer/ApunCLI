@@ -4,21 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "apuncli"
-version = "1.0.1"
+dynamic = ["version"]
 description = "Gestor de apuntes de estudio desde la terminal"
 readme = "README.md"
-requires-python = ">=3.8"
-license = { file = "LICENSE" }
+requires-python = ">=3.10"
+license = "MIT"
 authors = [{ name = "apuncli" }]
 keywords = ["cli", "apuntes", "estudio", "terminal"]
 classifiers = [
     "Environment :: Console",
-    "Programming Language :: Python :: 3",
+    "Intended Audience :: Education",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Education",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest"]
 
 [project.scripts]
 apuncli = "apuncli.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "apuncli.__version__" }

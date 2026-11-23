@@ -85,7 +85,7 @@ def _ejecutar(conexion, accion: str) -> None:
         consulta = ui.pedir_texto("\n¿Qué buscas? ")
         comandos.cmd_buscar(conexion, consulta)
     elif accion == "repasar":
-        comandos.cmd_repasar(conexion, None, None, 5)
+        comandos.cmd_repasar(conexion, None, None, 5, solo_cola=True)
     elif accion == "test":
         comandos.cmd_test(conexion, None, None, 10, False)
     elif accion == "recurso":

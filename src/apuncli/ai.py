@@ -50,8 +50,12 @@ def leer_env(ruta: Optional[Path] = None) -> dict:
     """Mini-lector de .env (sin dependencias). Las vars reales ganan."""
     valores = {}
     ruta = _ruta_env_preferida(ruta)
-    if ruta.exists():
-        for linea in ruta.read_text(encoding="utf-8").splitlines():
+    if ruta.is_file():
+        try:
+            contenido = ruta.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            contenido = ""          # .env ilegible: seguimos con variables de entorno
+        for linea in contenido.splitlines():
             linea = linea.strip()
             if not linea or linea.startswith("#") or "=" not in linea:
                 continue

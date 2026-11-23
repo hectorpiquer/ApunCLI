@@ -65,7 +65,7 @@ Resultado: suite pytest de casos feos en carpetas temporales.
 Saqué `destino.mkdir()` del `if not simular:` en `motor.py` (también creaba la
 carpeta al simular), guardé y pasé pytest. Se pusieron en rojo DOS pruebas:
 `test_simular_no_toca_nada` (pytest) y `test_ejecutar_simular_desde_la_orden_no_toca_el_disco`
-(CLI por fuera). Devuelto con `git checkout`, las 90 otra vez en verde.
+(CLI por fuera). Devuelto con `git checkout`, las 94 otra vez en verde.
 Conclusión: las pruebas protegen de verdad, no decoran.
 
 ### Qué corregí de lo que hizo el agente

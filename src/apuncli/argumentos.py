@@ -5,7 +5,7 @@ import sqlite3
 import sys
 
 from . import __version__, comandos, db, ui
-from .errores import ApuncliError, ConfigError, SinRedError
+from .errores import AccionNoValida, ApuncliError, ConfigError, SinRedError
 
 AYUDA_PRINCIPAL = """\
 apuncli — gestor de apuntes de estudio desde la terminal
@@ -66,6 +66,8 @@ def crear_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("ver", help="ver un apunte completo",
                        description="Muestra el título, los metadatos y el contenido del apunte.")
     p.add_argument("id", help="id del apunte (ver 'apuncli listar')")
+    p.add_argument("--json", action="store_true",
+                   help="salida en JSON (ficha + contenido + recursos)")
 
     # buscar
     p = sub.add_parser("buscar", aliases=["search"], help="buscar apuntes por texto",
@@ -73,6 +75,7 @@ def crear_parser() -> argparse.ArgumentParser:
                                    "'palabra', " '"varias palabras"' ", prefijos ( ejecu*) y "
                                    "booleanos (uno Y otro).")
     p.add_argument("consulta", help="texto a buscar")
+    p.add_argument("--json", action="store_true", help="salida en JSON")
 
     # editar
     p = sub.add_parser("editar", aliases=["edit"], help="editar un apunte existente",
@@ -129,10 +132,13 @@ def crear_parser() -> argparse.ArgumentParser:
     # repasar
     p = sub.add_parser("repasar", aliases=["review"], help="repasar apuntes en modo ficha",
                        description="Muestra los títulos uno a uno para que intentes recordar "
-                                   "el contenido antes de verlo. Prioriza los no repasados.")
+                                   "el contenido antes de verlo. Con --cola usa la repetición "
+                                   "espaciada (solo lo que toca hoy).")
     p.add_argument("-a", "--asignatura", help="repasar solo los de una asignatura")
     p.add_argument("-t", "--etiqueta", help="repasar solo los de una etiqueta")
     p.add_argument("-n", "--num", type=int, default=5, help="cuántos repasar (por defecto 5)")
+    p.add_argument("--cola", action="store_true",
+                   help="solo lo que marca el repaso espaciado para hoy")
 
     # test
     p = sub.add_parser("test", help="hacerte un test a partir de tus apuntes",
@@ -185,9 +191,10 @@ def crear_parser() -> argparse.ArgumentParser:
                    description="Muestra las asignaturas que tienen apuntes.")
 
     # stats
-    sub.add_parser("stats", help="ver estadísticas de estudio",
-                   description="Resumen: total de apuntes, palabras, repasos y desglose "
-                               "por asignatura.")
+    p = sub.add_parser("stats", help="ver estadísticas de estudio",
+                       description="Resumen: total de apuntes, palabras, repasos y desglose "
+                                   "por asignatura.")
+    p.add_argument("--json", action="store_true", help="salida en JSON")
 
     # hoy
     sub.add_parser("hoy", help="plan rápido de qué estudiar hoy",
@@ -283,7 +290,7 @@ def ejecutar(argv=None) -> int:
         print("  sin IA la herramienta sigue funcionando con todo lo demás "
               "(prueba 'apuncli comprobar-ia' para el diagnóstico).", file=sys.stderr)
         return 4
-    except ConfigError as error:
+    except (ConfigError, AccionNoValida) as error:
         print("error de configuración:", file=sys.stderr)
         for problema in error.problemas:
             print(f"  · {problema}", file=sys.stderr)
@@ -309,9 +316,9 @@ def _despachar(conexion, args, parser) -> None:
     elif comando in ("listar", "ls"):
         comandos.cmd_listar(conexion, args.asignatura, args.etiqueta, args.json)
     elif comando == "ver":
-        comandos.cmd_ver(conexion, comandos._parsear_id(args.id))
+        comandos.cmd_ver(conexion, comandos._parsear_id(args.id), args.json)
     elif comando in ("buscar", "search"):
-        comandos.cmd_buscar(conexion, args.consulta)
+        comandos.cmd_buscar(conexion, args.consulta, args.json)
     elif comando in ("editar", "edit"):
         comandos.cmd_editar(conexion, comandos._parsear_id(args.id),
                             args.titulo, args.contenido, args.asignatura,
@@ -327,7 +334,7 @@ def _despachar(conexion, args, parser) -> None:
     elif comando == "importar":
         comandos.cmd_importar(conexion, args.fichero)
     elif comando in ("repasar", "review"):
-        comandos.cmd_repasar(conexion, args.asignatura, args.etiqueta, args.num)
+        comandos.cmd_repasar(conexion, args.asignatura, args.etiqueta, args.num, args.cola)
     elif comando == "test":
         comandos.cmd_test(conexion, args.asignatura, args.etiqueta, args.num, args.auto)
     elif comando in ("recurso", "rec"):
@@ -351,7 +358,7 @@ def _despachar(conexion, args, parser) -> None:
     elif comando in ("asignaturas", "materias"):
         comandos.cmd_asignaturas(conexion)
     elif comando == "stats":
-        comandos.cmd_stats(conexion)
+        comandos.cmd_stats(conexion, args.json)
     elif comando == "hoy":
         comandos.cmd_hoy(conexion)
     elif comando in ("respaldo", "backup"):

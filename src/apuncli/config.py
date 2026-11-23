@@ -40,6 +40,10 @@ class Configuracion:
             texto = ruta.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             raise ConfigError([f"{ruta} no está en UTF-8; guárdalo con codificación UTF-8."])
+        except IsADirectoryError:
+            raise ConfigError([f"{ruta} es un directorio, no un fichero."])
+        except OSError as error:
+            raise ConfigError([f"No se pudo leer {ruta}: {error}"])
         try:
             datos = json.loads(texto)
         except json.JSONDecodeError as error:
