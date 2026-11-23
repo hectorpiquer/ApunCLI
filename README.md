@@ -462,8 +462,13 @@ conviene tener red de seguridad:
 ```bash
 apuncli respaldo hacer     # copia de seguridad ahora (junto a la base de datos)
 apuncli respaldo listar    # ver las copias que tienes
-apuncli respaldo restaurar # restaurar la copia más reciente (pregunta antes)
+apuncli respaldo restaurar # restaura la más reciente (pregunta antes; --si en scripts)
 ```
+
+> Las copias se guardan como `respaldo-AAAAMMDD-HHMMSS.db` junto a tu base de
+> datos (`~/.apuncli/`). Un `apuncli respaldo hacer` antes de cada sesión larga
+> es tu red de seguridad; para llevarlas a otro sitio, copia esos `.db` a tu
+> nube o USB.
 
 ## Autocompletado con TAB
 
