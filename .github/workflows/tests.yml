@@ -9,8 +9,7 @@ name: pruebas
 # failed jobs).
 
 on:
-  push:
-    branches: [main]
+  push:                    # todos los pushes (ramas incluidas): más runs
   pull_request:
 
 jobs:
