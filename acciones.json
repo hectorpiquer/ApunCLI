@@ -5,7 +5,7 @@
       "nombre": "ordenar-descargas",
       "descripcion": "Mueve los PDF y documentos de la carpeta de Descargas a la carpeta de destino (Documentos/PDF)",
       "tipo": "mover",
-      "origen": "~/Descargas",
+      "origen": "~/Baixades",
       "filtro": { "extensiones": [".pdf", ".docx", ".odt", ".txt", ".md"] },
       "destino": "~/Documentos/PDF",
       "confirmar": true
@@ -14,7 +14,7 @@
       "nombre": "duplicados-descargas",
       "descripcion": "Informa de los ficheros duplicados en Descargas (mismo contenido, distinto nombre) por hash SHA-256",
       "tipo": "duplicados",
-      "origen": "~/Descargas"
+      "origen": "~/Baixades"
     },
     {
       "nombre": "limpiar-temporales",
