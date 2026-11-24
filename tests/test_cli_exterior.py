@@ -5,12 +5,9 @@ que sustituye a un CliRunner (no usamos Typer; con argparse esto es lo mismo).
 """
 
 import io
-import unittest as _unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-if "unittest" in globals():     # descubierto por unittest: no es su fichero
-    raise _unittest.SkipTest("este fichero solo funciona con pytest")
 import pytest
 
 from apuncli import argumentos

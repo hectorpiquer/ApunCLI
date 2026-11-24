@@ -695,7 +695,7 @@ def cmd_acciones(config: config_mod.Configuracion, como_json: bool = False) -> N
     for accion in config.acciones:
         marca = " 🤖" if accion.con_ia else ""
         print(f"  {accion.nombre:<24} {accion.descripcion}{marca}")
-    print(ui.tenue("\nEjecuta una: apuncli ejecutar <nombre> [carpeta] --simular"))
+    print(ui.tenue("\nEjecuta una: apuncli ejecutar <nombre> [carpeta|apunte] --simular"))
 
 
 def cmd_validar(ruta: Optional[str]) -> int:

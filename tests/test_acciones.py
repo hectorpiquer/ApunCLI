@@ -5,12 +5,9 @@ El aislamiento (carpeta temporal, sin ia.env, sin red) lo garantiza la fixture
 """
 
 import os
-import unittest as _unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-if "unittest" in globals():     # descubierto por unittest: no es su fichero
-    raise _unittest.SkipTest("este fichero solo funciona con pytest")
 import pytest
 
 from conftest import ProveedorFalso  # el mismo «modelo» que en el resto de tests

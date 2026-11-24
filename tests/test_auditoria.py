@@ -6,13 +6,10 @@ espaciado. Todo a través de la orden real (argumentos.ejecutar) cuando toca.
 import io
 import json
 import os
-import unittest as _unittest
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
 
-if "unittest" in globals():     # descubierto por unittest: no es su fichero
-    raise _unittest.SkipTest("este fichero solo funciona con pytest")
 import pytest
 
 from apuncli import argumentos, db
@@ -273,3 +270,15 @@ def test_variables_del_centro_toman_el_testigo(monkeypatch):
     assert proveedor.url == "https://centro.ejemplo/v1"
     assert proveedor.clave == "clave-de-prueba"
     assert proveedor.modelo == "qwen3:8b"
+
+
+def test_ejecutar_duplicados_por_consola(descargas, tmp_path, escribir_config):
+    """Informe de duplicados de punta a punta: la orden, el código y el texto."""
+    (descargas / "copia de factura.pdf").write_bytes((descargas / "factura.pdf").read_bytes())
+    ruta = escribir_config([{"nombre": "dup", "descripcion": "d",
+                             "tipo": "duplicados", "origen": str(descargas)}])
+    codigo, texto = ejecutar("--config", str(ruta), "ejecutar", "dup")
+    assert codigo == 0
+    # el informe agrupa: "duplicados (hash…): a, b"
+    assert "duplicados" in texto
+    assert "factura.pdf" in texto and "copia de factura.pdf" in texto
