@@ -11,6 +11,9 @@ Repositorio: https://github.com/hectorpiquer/ApunCLI — usa la **última releas
 uv tool install git+https://github.com/hectorpiquer/ApunCLI.git@<LA-ULTIMA-VERSIÓN>
 # o:  pipx install git+https://github.com/hectorpiquer/ApunCLI.git@<LA-ULTIMA-VERSIÓN>
 # o:  pip install --user git+https://github.com/hectorpiquer/ApunCLI.git@<LA-ULTIMA-VERSIÓN>
+
+(En el aula también puedes clonar el repo y `pip install -e .` si no
+hay salida a internet: la instalación local funciona igual.)
 ```
 
 ## 2 · Probar que existe
