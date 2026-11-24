@@ -91,6 +91,7 @@ Y ya está, desde **cualquier carpeta**:
 
 ```bash
 apuncli --help
+apuncli version      # debe decir: apuncli 1.0.4 (o la que tengas)
 ```
 
 > **Sin dependencias externas.** Todo el proyecto usa módulos estándar de
@@ -117,6 +118,12 @@ pip install -e .
 ```
 
 Los cambios en el código se notan al instante sin reinstalar.
+
+## Probarla con otra persona (instalación cruzada)
+
+El paso final del proyecto es que alguien más la instale siguiendo solo este
+README. Hay un checklist para esa persona, paso a paso y con plantilla de
+issue, en [docs/instalacion-cruzada.md](docs/instalacion-cruzada.md).
 
 ## Modo menú (sin memorizar nada)
 
@@ -183,6 +190,7 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | `stats`            | Estadísticas de estudio (`--json`)                | `apuncli stats`                      |
 | `respaldo` (`backup`) | Copia de seguridad y restauración               | `apuncli respaldo hacer`             |
 | `completar`        | Configurar el autocompletado (TAB)                | `eval "$(apuncli completar)"`         |
+| `version`          | Ver la versión instalada                          | `apuncli version`                    |
 | `demo`             | Apuntes de ejemplo para probarlo todo             | `apuncli demo`                       |
 | `acciones`         | Listar las acciones de `acciones.json` (`--json`) | `apuncli acciones`                   |
 | `validar`          | Comprobar `acciones.json` (código 3 si falla)     | `apuncli validar`                    |

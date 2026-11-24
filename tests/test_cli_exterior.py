@@ -25,6 +25,13 @@ def ejecutar(*argv):
     return codigo, salida.getvalue() + errores.getvalue()
 
 
+def test_version_imprime_la_version_de_pyproject():
+    codigo, texto = ejecutar("version")
+    assert codigo == 0
+    from apuncli import __version__
+    assert texto.strip() == f"apuncli {__version__}"
+
+
 def test_la_ayuda_funciona_sale_con_0():
     codigo, texto = ejecutar("--help")
     assert codigo == 0

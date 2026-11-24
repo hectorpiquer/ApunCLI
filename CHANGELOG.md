@@ -2,6 +2,23 @@
 
 Formato *Keep a Changelog*; versiones según *Semantic Versioning*.
 
+## [1.0.4] · 2026-11-23
+
+### Añadido
+- Orden `apuncli version` (muestra la versión instalada, como manda el patrón
+  del curso).
+- Documentación de la instalación cruzada: `docs/instalacion-cruzada.md`, el
+  checklist paso a paso para quien prueba tu CLI siguiendo solo el README,
+  con plantilla de issue.
+- Prueba de `version` y del flujo de duplicados a través de la orden real.
+
+### Cambiado
+- `apuncli acciones` aclara en su ayuda que `ejecutar` recibe carpeta, id de
+  apunte (IA) o asignatura (temario) según la acción.
+- Scripts de tests: `sys.path` centralizado en `conftest.py`; menos repetición.
+- `scripts/revisar.sh` avisa si OpenCode no está instalado (antes fallaba en
+  silencio); sin `--auto`, nunca.
+
 ## [1.0.3] · 2026-11-23
 
 ### Añadido

@@ -644,7 +644,7 @@ _apuncli_completar() {
     local opcion="${COMP_WORDS[1]}"
     local         lista_comandos="crear listar ls ver buscar search editar edit borrar rm limpiar abrir open exportar \
 importar repasar review test recurso rec temario hoy stats etiquetas tags asignaturas materias completar \
-respaldo demo"
+respaldo demo version"
     local lista_asignaturas=""
     local lista_etiquetas=""
     if command -v apuncli >/dev/null 2>&1; then

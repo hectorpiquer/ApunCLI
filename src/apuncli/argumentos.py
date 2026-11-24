@@ -216,6 +216,11 @@ def crear_parser() -> argparse.ArgumentParser:
                    description="Imprime el código de autocompletado (TAB) para bash. "
                                "Se configura una vez en tu ~/.bashrc.")
 
+    # version (sin guiones, como pide el patrón del curso)
+    sub.add_parser("version", help="mostrar la versión instalada",
+                   description="Imprime la versión del paquete tal y como está "
+                               "declarada en el proyecto.")
+
     # demo
     p = sub.add_parser("demo", help="crear apuntes de ejemplo para probar",
                        description="Inserta 4 apuntes de muestra (ED y Matemáticas) con "
@@ -366,6 +371,8 @@ def _despachar(conexion, args, parser) -> None:
         comandos.cmd_respaldo(conexion, accion, getattr(args, "fichero", None))
     elif comando == "completar":
         comandos.cmd_completar()
+    elif comando == "version":
+        print(f"apuncli {__version__}")
     elif comando == "demo":
         comandos.cmd_demo(conexion, args.si)
     elif comando == "acciones":
