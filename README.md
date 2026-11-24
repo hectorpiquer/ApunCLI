@@ -505,6 +505,8 @@ subir el temario a GitHub (Markdown de toda la vida).
 | `APUNCLI_IA_CLAVE`  | Clave del proveedor (vacía en Ollama). También en `ia.env`/`.env`. |
 | `APUNCLI_IA_MODELO` | Modelo (por defecto `qwen3:8b`).                               |
 | `APUNCLI_ENV`       | Fichero `.env` alternativo para la configuración de IA.        |
+| `CENTRO_IA_URL` / `CENTRO_IA_KEY` / `CENTRO_IA_MODELO` | Las **mismas variables del servidor del centro** que usa OpenCode; si existen, tu CLI las usa (por delante del `.env`). |
+| `CENTRO_IA_CA` / `NODE_EXTRA_CA_CERTS` | Ruta al certificado `ca-ies-simarro.crt` para el HTTPS del centro. |
 
 ## Estructura del proyecto
 

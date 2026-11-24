@@ -257,3 +257,19 @@ def test_migracion_de_base_vieja(tmp_path):
         assert len(db.buscar_apuntes(conexion, "Viejo")) == 1
     finally:
         del os.environ["APUNCLI_DB"]
+
+# ---------------------------------------------------------------------------
+# Compatibilidad con el servidor del centro (variables CENTRO_*)
+# ---------------------------------------------------------------------------
+
+def test_variables_del_centro_toman_el_testigo(monkeypatch):
+    """CENTRO_IA_URL/KEY (las de OpenCode) alimentan la capa IA sin .env."""
+    monkeypatch.setenv("APUNCLI_ENV", "/definitivamente/no/existe.env")
+    monkeypatch.setenv("CENTRO_IA_URL", "https://centro.ejemplo/v1")
+    monkeypatch.setenv("CENTRO_IA_KEY", "clave-de-prueba")
+    monkeypatch.setenv("CENTRO_IA_MODELO", "qwen3:8b")
+    from apuncli.ai import ProveedorIA
+    proveedor = ProveedorIA()
+    assert proveedor.url == "https://centro.ejemplo/v1"
+    assert proveedor.clave == "clave-de-prueba"
+    assert proveedor.modelo == "qwen3:8b"

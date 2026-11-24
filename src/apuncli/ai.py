@@ -61,7 +61,8 @@ def leer_env(ruta: Optional[Path] = None) -> dict:
                 continue
             clave, _, valor = linea.partition("=")
             valores[clave.strip()] = valor.strip().strip("'\"")
-    for clave in ("APUNCLI_IA_URL", "APUNCLI_IA_CLAVE", "APUNCLI_IA_MODELO"):
+    for clave in ("APUNCLI_IA_URL", "APUNCLI_IA_CLAVE", "APUNCLI_IA_MODELO",
+                  "CENTRO_IA_URL", "CENTRO_IA_KEY", "CENTRO_IA_CA"):
         if os.environ.get(clave):
             valores[clave] = os.environ[clave]
     return valores
@@ -78,10 +79,16 @@ class ProveedorIA:
                  modelo: Optional[str] = None, env_ruta: Optional[Path] = None):
         valores = leer_env(env_ruta)
         self.url = (url or valores.get("APUNCLI_IA_URL")
+                    or valores.get("CENTRO_IA_URL")
                     or "http://127.0.0.1:11434/v1").rstrip("/")
-        self.clave = clave or valores.get("APUNCLI_IA_CLAVE") or ""
-        self.modelo = modelo or valores.get("APUNCLI_IA_MODELO") or _MODELO_POR_DEFECTO
-        self._donde = str(_ruta_env_preferida(env_ruta).name) if _ruta_env_preferida(env_ruta).exists() else "variables de entorno"
+        self.clave = (clave or valores.get("APUNCLI_IA_CLAVE")
+                      or valores.get("CENTRO_IA_KEY") or "")
+        self.modelo = modelo or valores.get("APUNCLI_IA_MODELO") or valores.get(
+            "CENTRO_IA_MODELO") or _MODELO_POR_DEFECTO
+        self.certificado = valores.get("CENTRO_IA_CA") or os.environ.get(
+            "NODE_EXTRA_CA_CERTS") or ""
+        self._donde = (str(_ruta_env_preferida(env_ruta).name)
+                       if _ruta_env_preferida(env_ruta).exists() else "variables de entorno")
 
     @property
     def _url_chat(self) -> str:
@@ -104,10 +111,15 @@ class ProveedorIA:
         peticion.add_header("Content-Type", "application/json")
         if self.clave:
             peticion.add_header("Authorization", f"Bearer {self.clave}")
+        contexto = None
+        if self.url.startswith("https"):
+            import ssl
+            contexto = ssl.create_default_context(cafile=self.certificado or None)
         for intento in range(self.REINTENTOS):
             tiempo = self.TIMEOUT_PETICION if intento == 0 else 8
             try:
-                with urllib.request.urlopen(peticion, timeout=tiempo) as respuesta:
+                with urllib.request.urlopen(peticion, timeout=tiempo,
+                                            context=contexto) as respuesta:
                     datos = json.loads(respuesta.read().decode("utf-8"))
                 break
             except urllib.error.HTTPError as error:

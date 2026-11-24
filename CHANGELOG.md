@@ -2,6 +2,15 @@
 
 Formato *Keep a Changelog*; versiones según *Semantic Versioning*.
 
+## [1.0.3] · 2026-11-23
+
+### Añadido
+- La capa IA entiende las variables del centro (`CENTRO_IA_URL`, `CENTRO_IA_KEY`,
+  `CENTRO_IA_MODELO`, `CENTRO_IA_CA`): las mismas que ya usa OpenCode, así que
+  tu CLI habla con el servidor del instituto sin configurar dos veces.
+- Soporte de HTTPS con certificado propio (el del centro): `ssl` con CA
+  opcional desde `CENTRO_IA_CA` / `NODE_EXTRA_CA_CERTS`.
+
 ## [1.0.2] · 2026-11-23
 
 Tras una auditoría completa del proyecto (rúbrica + revisión de código).

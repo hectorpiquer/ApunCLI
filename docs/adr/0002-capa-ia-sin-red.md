@@ -24,6 +24,14 @@ inutilizable cuando no hay red.
 4. **`apuncli comprobar-ia`** prueba la conexión real y explica qué falta; es el
    diagnóstico para el aula ("¿por qué no va lo de la IA?").
 
+## Enmienda (23 nov): las variables del centro
+
+El centro expone sus modelos por una API OpenAI-compatible detrás de HTTPS con
+certificado propio (`https://ia.simarro/llmapi/v1`), la misma que usa OpenCode.
+`ProveedorIA` acepta como alternativa las variables `CENTRO_IA_URL`/`CENTRO_IA_KEY`
+/`CENTRO_IA_MODELO`/`CENTRO_IA_CA`, así que quien ya tiene OpenCode conectado
+activa la IA de la CLI **sin configurar nada más**. La clave sigue fuera del repo.
+
 ## Consecuencias
 
 - ✅ En casa sin red: las 2 acciones IA avisan y todo lo demás funciona.
