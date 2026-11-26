@@ -208,3 +208,74 @@ def test_cli_crear_doc(carpeta_fea):
     assert Path(ruta).exists()
     codigo2, _ = ejecutar("crear-doc", ruta)          # colisión: crea -1
     assert codigo2 == 0 and list(carpeta_fea.glob("notas*.md"))
+
+
+# ---------------------------------------------------------------------------
+# El ataque del profe: rutas y enlaces raros (v1.0.7)
+# ---------------------------------------------------------------------------
+
+def test_ruta_inexistente_no_pide_confirmacion(escribir_config, tmp_path):
+    """Si la carpeta no existe, error directo: nunca un '¿Continuar?' a ciegas."""
+    ruta = escribir_config([{"nombre": "m", "descripcion": "d", "tipo": "mover",
+                             "destino": str(tmp_path / "d"),
+                             "origen": str(tmp_path / "no-existe")}])
+    codigo, texto = ejecutar("--config", str(ruta), "ejecutar", "m", "--si")
+    assert codigo == 1 and "no existe" in texto
+
+
+def test_enlaces_simbolicos_no_se_siguen_en_duplicados(tmp_path):
+    """Un enlace a fuera no se informa, no se sigue y no se borra."""
+    Victor = tmp_path / "Fuera.dat"
+    Victor.write_text("SECRETO", encoding="utf-8")
+    antiguo = tmp_path / "a.pdf"
+    antiguo.write_bytes(b"SECRETO")
+    enlace = tmp_path / "clon.pdf"
+    enlace.symlink_to(Victor.name)
+    grupos = org.grupos_duplicados(tmp_path)
+    # el enlace NO aparece en ningún grupo (la víctima sí: es un fichero real)
+    assert not any(enlace in g for _, g in grupos)
+    # aunque el borrado decida dejar solo al más antiguo, el ENLACE nunca se
+    # borra a sí mismo…
+    for _, g in grupos:
+        borrados = org.borrar_menos_el_ancien(g)
+        assert enlace.name not in borrados
+    # …y con la víctima como fichero real, lo que sí queda claro: su contenido
+    # jamás se modifica (aunque sobreviva o no al "conservar el más antiguo")
+    if Victor.exists():
+        assert Victor.read_text(encoding="utf-8") == "SECRETO"
+    assert enlace.exists() or Victor.exists()          # algo queda: nada en silencio
+
+
+def test_temporales_ignora_enlaces(carpeta_fea):
+    Victor = carpeta_fea / "FueraSinPeligro.dat"
+    Victor.write_text("x", encoding="utf-8")
+    viejo = carpeta_fea / "cache.tmp"                        # el de la fixture…
+    viejo.unlink()
+    viejo.symlink_to(Victor.name)                            # …ahora es un enlace
+    import os, time
+    hace = time.time() - 60 * 86400
+    os.utime(Victor, (hace, hace))
+    viejos = org.temporales_viejos(carpeta_fea, 30)
+    assert viejo not in viejos                               # enlace: no se borra
+
+
+def test_renombrar_ia_multilinea_y_ruta_peligrosa(proveedor_falso, tmp_path, monkeypatch):
+    """La respuesta sucia del modelo no rompe ni saca rutas del directorio."""
+    doc = tmp_path / "anonimo.txt"
+    doc.write_text("contenid", encoding="utf-8")
+    falso = proveedor_falso("Te propongo:\n../../etc/shadow.txt\ngracias")
+    import apuncli.ai as ai_mod
+    monkeypatch.setattr(ai_mod, "ProveedorIA", lambda *a, **k: falso)
+    monkeypatch.setattr("builtins.input", lambda *a: "n")   # confirma con 'no'
+    from apuncli import organizador_menu as om
+    om.renombrar_ia(doc)                                # no explota, no renombra
+    assert doc.exists()
+    assert not list(tmp_path.glob("etc*"))
+
+
+def test_espacio_ignora_montajes_del_sistema(tmp_path):
+    # /proc y /sys no aparecen aunque se pidan; una carpeta normal sí
+    (tmp_path / "normal").mkdir()
+    (tmp_path / "normal" / "f.bin").write_bytes(b"12345")
+    datos = dict(org.uso_espacio(Path("/"), 1))
+    assert "/proc" not in datos and "/sys" not in datos

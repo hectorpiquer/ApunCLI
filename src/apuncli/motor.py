@@ -1,3 +1,4 @@
+import os
 """Motor: ejecuta acciones sobre ficheros reales, sin saber nada de la interfaz.
 
 Reglas de seguridad del motor:
@@ -8,6 +9,7 @@ Reglas de seguridad del motor:
 """
 
 import hashlib
+import os
 import re
 import shutil
 from datetime import datetime
@@ -43,7 +45,8 @@ class Motor:
                  simular: bool = False) -> ResultadoAccion:
         resultado = ResultadoAccion(accion, simular)
         origen = carpeta or accion.origen or Path.cwd()
-        origen = Path(origen).expanduser()
+        import os
+        origen = Path(os.path.expanduser(str(origen)))
         if not origen.exists():
             raise FalloEjecucion(f"La carpeta no existe: {origen}")
 
@@ -60,6 +63,10 @@ class Motor:
         else:
             raise FalloEjecucion(f"El tipo '{accion.tipo}' lo ejecuta la CLI, "
                                  "no el motor de ficheros.")
+        from . import ajustes
+        ajustes.registrar(
+            f"accion:{accion.tipo}", accion.nombre,
+            "simulado" if simular else f"{resultado.tocados} tocados")
         return resultado
 
     # -- tipos -------------------------------------------------------------
@@ -219,7 +226,14 @@ class Motor:
 
 
 def hash_de(fichero: Path) -> str:
-    """SHA-256 del contenido (para detectar duplicados)."""
+    """SHA-256 del contenido (para detectar duplicados).
+
+    El `open` va protegido: un socket/fifo sin permisos no debe tumbar la
+    acción; lanza FileNotFoundError/PermissionError para que el llamador la
+    omita, nunca un traceback al usuario.
+    """
+    if fichero.is_symlink():
+        raise FileNotFoundError(f"{fichero} es un enlace simbólico")
     digest = hashlib.sha256()
     with open(fichero, "rb") as archivo:
         for bloque in iter(lambda: archivo.read(65536), b""):

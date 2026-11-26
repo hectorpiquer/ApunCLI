@@ -175,9 +175,9 @@ _CONSINA_PREGUNTAS = (
 
 _CONSINA_RENOMBRAR = (
     "Eres un asistente que pone nombres de fichero. A partir del contenido de "
-    "un documento, responde SOLO con un nombre de fichero en minúsculas, sin "
-    "tildes, sin espacios (usa guiones), sin acentos y de 4 palabras máximo, "
-    "sin extensión. Nada más."
+    "un documento, responde SOLO con una línea y nada más: un nombre de fichero "
+    "en minúsculas, sin tildes, sin espacios (usa guiones) y de 4 palabras "
+    "máximo, sin extensión. Nada más."
 )
 
 _CONSINA_CLASIFICAR = (
@@ -205,6 +205,8 @@ def a_nombre_seguro(propuesta: str, sugerida: str = "") -> str:
         nombre = nombre[: -len(extension)]              # quita la extensión que añada
     nombre = re.sub(r"[^a-z0-9]+", "-", nombre)         # todo lo demás → guiones
     nombre = re.sub(r"-+", "-", nombre).strip("-")      # sin -- ni extremos
+    if extension and nombre.endswith(extension[1:]):    # 'guia-git-txt' + '.txt'
+        nombre = nombre[: -(len(extension) - 1)].strip("-")
     if not nombre:
         nombre = "sin-nombre"
     return (nombre + extension)[:60]
@@ -217,14 +219,20 @@ def categorias_configuradas() -> list:
     return [c.strip() for c in crudo.split(",") if c.strip()]
 
 
+def _mejor_linea(respuesta: str) -> str:
+    """Elige la línea más creíble como nombre: descarta preámbulos del modelo."""
+    lineas = [l.strip() for l in (respuesta or "").splitlines() if l.strip()]
+    candidatas = [l for l in lineas
+                  if " " not in l and len(l) <= 64 and not l.endswith((".", ":", ","))]
+    return (candidatas[0] if candidatas else (lineas[0] if lineas else ""))
+
+
 def accion_renombrar(texto: str, nombre_actual: str,
                      proveedor: Optional[ProveedorIA] = None) -> str:
     proveedor = proveedor or ProveedorIA()
-    consigna = _CONSINA_RENOMBRAR
-    respuesta = proveedor.preguntar(consigna,
+    respuesta = proveedor.preguntar(_CONSINA_RENOMBRAR,
                                     f"nombre actual: {nombre_actual}\n\n{texto}")
-    primera = respuesta.strip().splitlines()[0] if respuesta.strip() else ""
-    return primera
+    return _mejor_linea(respuesta)
 
 
 def accion_clasificar(texto: str, categorias: list,
@@ -232,8 +240,11 @@ def accion_clasificar(texto: str, categorias: list,
     proveedor = proveedor or ProveedorIA()
     consigna = _CONSINA_CLASIFICAR.replace("{categorias}", ", ".join(categorias))
     respuesta = proveedor.preguntar(consigna, texto)
-    eleccion = respuesta.strip().strip(".- ").lower()
-    return eleccion if eleccion in categorias else "sin-clasificar"
+    for linea in respuesta.splitlines():
+        eleccion = linea.strip().strip(".- ").lower()
+        if eleccion in categorias:
+            return eleccion
+    return "sin-clasificar"
 
 
 def accion_resumir(texto: str, proveedor: Optional[ProveedorIA] = None) -> str:

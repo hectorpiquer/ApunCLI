@@ -6,6 +6,7 @@ import sqlite3
 import sys
 
 from . import __version__, comandos, db, ui
+from . import organizador
 from .errores import AccionNoValida, ApuncliError, ConfigError, SinRedError
 
 AYUDA_PRINCIPAL = """\
@@ -301,6 +302,12 @@ def crear_parser() -> argparse.ArgumentParser:
                                    "(xdg-open/open/startfile).")
     p.add_argument("ruta", help="fichero o carpeta")
 
+    p = sub.add_parser("registro", help="qué ha hecho la herramienta (histórico)",
+                       description="Muestra las últimas acciones registradas "
+                                   "(fecha, acción, resultado, detalle) desde "
+                                   "~/.apuncli/acciones.log.")
+    p.add_argument("-n", "--num", type=int, default=20, help="cuántas ver (20)")
+
     return parser
 
 
@@ -435,11 +442,11 @@ def _despachar(conexion, args, parser) -> None:
         sub = args.sub or "espacio"
         categorias = [args.solo] if getattr(args, "solo", None) else None
         if sub == "ordenar-descargas":
-            comandos.cmd_organizar(sub, Path(args.carpeta).expanduser(),
+            comandos.cmd_organizar(sub, organizador._ruta_de(args.carpeta),
                                    simular=args.simular, categorias=categorias,
                                    como_json=args.json)
         else:
-            comandos.cmd_organizar(sub, Path(args.carpeta).expanduser(),
+            comandos.cmd_organizar(sub, organizador._ruta_de(args.carpeta),
                                    borrar=getattr(args, "borrar", False),
                                    dias=getattr(args, "dias", 30),
                                    simular=getattr(args, "simular", False),
@@ -448,5 +455,19 @@ def _despachar(conexion, args, parser) -> None:
         comandos.cmd_crear_doc_ruta(args.ruta, args.tipo)
     elif comando == "abrir-qui":
         comandos.cmd_abrir_fichero(args.ruta)
+    elif comando == "registro":
+        from . import ajustes
+        lineas = ajustes.ver_registro(args.num)
+        if not lineas:
+            print("Sin registro todavía: la herramienta anota aquí cada cosa que toca.")
+        else:
+            ui.titulo_de_seccion(f"Últimas {len(lineas)} acciones")
+            for linea in lineas:
+                partes = linea.split("\t")
+                if len(partes) == 4:
+                    fecha, accion, resultado, detalle = partes
+                    print(f"  {fecha}  {accion:<22} {resultado:<12} {detalle}")
+                else:
+                    print(f"  {linea}")
     else:
         parser.print_help()

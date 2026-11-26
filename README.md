@@ -498,6 +498,14 @@ definiciones claras, términos en negrita y listas; el test mejorará solo.
 sin repasar, qué apuntes tienen preguntas para test y cuáles tocaste hace poco,
 con una sugerencia de comando para ponerte.
 
+## Registro: siempre sabes qué tocó la herramienta
+
+Cada acción (crear, borrar, mover, renombrar, abrir, respaldo, duplicados,
+temporales, IA…) queda anotada con fecha y detalle en `~/.apuncli/acciones.log`.
+Para verlo: `apuncli registro` (o la opción **📜 ¿Qué ha hecho apuncli?** del
+menú organizador). Un registro que nunca rompe: si el disco de registro no
+se puede escribir, la orden sigue funcionando igual.
+
 ## Copia de seguridad
 
 Tus apuntes solo viven en un fichero (`~/.apuncli/apuncli.db`), así que

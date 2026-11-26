@@ -1,3 +1,4 @@
+import os
 """Lectura y validación de acciones.json (configuración externa).
 
 El validador es estricto a propósito: si algo falla, dice exactamente qué
@@ -35,7 +36,7 @@ class Configuracion:
 
     @classmethod
     def cargar(cls, ruta: Path) -> "Configuracion":
-        ruta = Path(ruta).expanduser()
+        ruta = _ruta_de(ruta)
         if not ruta.exists():
             raise ConfigError([f"El fichero de configuración no existe: {ruta}"])
         try:
@@ -87,6 +88,17 @@ class AccionConfig:
 
     def resumen(self) -> str:
         return f"{self.nombre}: {self.descripcion} [tipo {self.tipo}]"
+
+
+def _ruta_de(texto) -> Path:
+    """Path() con ~ expandido vía os.path (nunca revienta con '~raros')."""
+    texto = (str(texto) or "").strip() or "."
+    if texto.startswith("~"):
+        try:
+            texto = os.path.expanduser(texto)
+        except RuntimeError:
+            pass
+    return Path(texto)
 
 
 def _como_ruta(valor: Optional[str]) -> Optional[Path]:

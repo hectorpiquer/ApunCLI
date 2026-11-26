@@ -18,6 +18,7 @@ OPCIONES = [
     ("👯  Buscar duplicados", "duplicados"),
     ("🧮  Uso de espacio (subcarpetas)", "espacio"),
     ("🧹  Limpiar temporales viejos", "temporales"),
+    ("📜  ¿Qué ha hecho apuncli? (registro)", "registro"),
     ("🪄  Renombrar un fichero con IA", "renombrar-ia"),
     ("🗃️   Clasificar una carpeta con IA", "clasificar-ia"),
     ("↩️   Volver al selector de modo", "volver"),
@@ -30,7 +31,7 @@ def _carpeta_inicial() -> Path:
     from . import ajustes
     recordada = ajustes.leer_ajustes().get("ultima_carpeta")
     if recordada:
-        ruta = Path(recordada).expanduser()
+        ruta = organizador._ruta_de(recordada)
         if ruta.is_dir():
             return ruta
     return Path.home()
@@ -74,7 +75,7 @@ def menu_organizador() -> int:
 
 def _preguntar_carpeta(mensaje: str = "¿Qué carpeta?") -> Path:
     texto = ui.pedir_texto(f"{mensaje} (Enter = {_carpeta_inicial()}): ").strip()
-    ruta = Path(texto or _carpeta_inicial()).expanduser().resolve()
+    ruta = organizador._ruta_de(texto or str(_carpeta_inicial())).resolve()
     if not ruta.is_dir():
         raise ApuncliError(f"No existe la carpeta: {ruta}")
     return ruta
@@ -93,6 +94,8 @@ def _ejecutar(accion: str) -> None:
         espacio()
     elif accion == "temporales":
         temporales()
+    elif accion == "registro":
+        registro()
     elif accion == "renombrar-ia":
         renombrar_ia()
     elif accion == "clasificar-ia":
@@ -117,7 +120,7 @@ def explorar(carpeta: Path) -> None:
         _recordar(carpeta)
         hijos = organizador.listar_contenido(carpeta)
         etiquetas = [
-            ("📁 " if h.is_dir() else "   ") + h.name
+            ("📁 " if organizador.es_carpeta(h) else "   ") + h.name
             for h in hijos
         ] + [f"⬆️  Subir de nivel ({carpeta.name or carpeta})",
              "↩️  Salir del explorador"]
@@ -132,7 +135,7 @@ def explorar(carpeta: Path) -> None:
                 carpeta = carpeta.parent
             continue
         ruta = hijos[indice]
-        if ruta.is_dir():
+        if organizador.es_carpeta(ruta):
             carpeta = ruta
             continue
         _menu_fichero(carpeta, ruta)
@@ -140,7 +143,7 @@ def explorar(carpeta: Path) -> None:
 
 def _menu_fichero(carpeta: Path, ruta: Path) -> None:
     opciones = list(ACCIONES_FICHERO)
-    if ruta.is_dir():
+    if org.es_carpeta(ruta):
         opciones = [opciones[0], opciones[2], opciones[3], opciones[5], opciones[6], opciones[1]]
     try:
         indice = ui.seleccionar(f"Qué hago con {ruta.name}:", [a for a, _ in opciones])
@@ -152,7 +155,9 @@ def _menu_fichero(carpeta: Path, ruta: Path) -> None:
     if accion == "entrar" and ruta.is_dir():
         explorar(ruta); return
     if accion == "abrir":
-        organizador.abrir(ruta); print("✔ abierto")
+        organizador.abrir(ruta)
+        organizador.registrar_ia("abrir", str(ruta))
+        print("✔ abierto")
     elif accion == "info":
         print(organizador.info_fichero(ruta))
     elif accion == "fecha":
@@ -252,6 +257,17 @@ def espacio() -> None:
         print(f"  {organizador.tamano_legible(bytes_):>10}  {ruta}")
 
 
+def registro() -> None:
+    from . import ajustes
+    lineas = ajustes.ver_registro(25)
+    if not lineas:
+        print("Sin registro todavía: la herramienta anota aquí cada cosa que toca.")
+        return
+    ui.titulo_de_seccion(f"Últimas {len(lineas)} acciones")
+    for linea in lineas:
+        print("  " + linea.replace("\t", "  "))
+
+
 def temporales() -> None:
     carpeta = _preguntar_carpeta()
     viejos = organizador.temporales_viejos(carpeta, 30)
@@ -277,7 +293,7 @@ def renombrar_ia(ruta: Optional[Path] = None) -> None:
     from . import ai
     if ruta is None:
         carpeta = _preguntar_carpeta()
-        ficheros = [h for h in organizador.listar_contenido(carpeta) if h.is_file()]
+        ficheros = [h for h in organizador.listar_contenido(carpeta) if organizador.es_archivo(h)]
         if not ficheros:
             raise ApuncliError("No hay ficheros en esa carpeta.")
         try:
@@ -286,7 +302,7 @@ def renombrar_ia(ruta: Optional[Path] = None) -> None:
         except SeleccionCancelada:
             return
         ruta = ficheros[indice]
-    if ruta.is_dir():
+    if organizador.es_carpeta(ruta):
         raise ApuncliError("Es una carpeta; esto es para ficheros sueltos.")
     try:
         texto = ruta.read_text(encoding="utf-8", errors="replace")[:1500]
@@ -296,10 +312,16 @@ def renombrar_ia(ruta: Optional[Path] = None) -> None:
         raise ApuncliError("El fichero está vacío; no de qué saca un nombre.")
     print(ui.tenue("Consultando al modelo…"))
     try:
-        propuesta = ai.accion_renombrar(texto, ruta.name, ai.ProveedorIA())
+        proveedor = ai.ProveedorIA()
+        propuesta = ai.accion_renombrar(texto, ruta.name, proveedor)
+    except ApuncliError:
+        raise
     except Exception as error:                       # SinRedError y compañía
         raise ApuncliError(str(error))
     limpia = ai.a_nombre_seguro(propuesta, ruta.suffix)
+    if limpia == ai.a_nombre_seguro("", ruta.suffix):
+        raise ApuncliError("La IA no propuso un nombre útil; prueba con "
+                           "'renombrar con su fecha'.")
     print(f"El modelo propone: {ui.destacado(limpia)}")
     if limpia == ruta.name:
         print("Ya se llama así."); return
@@ -313,6 +335,7 @@ def renombrar_ia(ruta: Optional[Path] = None) -> None:
     try:
         ruta.rename(destino)
         print(f"✔ {ruta.name} → {destino.name}")
+        organizador.registrar_ia("renombrar-ia", f"{ruta.name} → {destino.name}")
     except OSError as error:
         raise ApuncliError(f"No se pudo renombrar: {error}")
 
@@ -321,7 +344,7 @@ def clasificar_ia(carpeta: Optional[Path] = None) -> None:
     from . import ai, ajustes
     carpeta = carpeta or _preguntar_carpeta()
     categorias = ai.categorias_configuradas()
-    ficheros = [h for h in organizador.listar_contenido(carpeta) if h.is_file()]
+    ficheros = [h for h in organizador.listar_contenido(carpeta) if organizador.es_archivo(h)]
     if not ficheros:
         raise ApuncliError("No hay ficheros que clasificar.")
     movidos = 0
@@ -342,6 +365,7 @@ def clasificar_ia(carpeta: Optional[Path] = None) -> None:
             ruta.rename(destino)
             movidos += 1
             print(f"  {ruta.name} → {categoria}/")
+            organizador.registrar_ia("clasificar-ia", f"{ruta.name} → {categoria}/")
         except OSError:
             continue
     print(f"✔ {movidos} ficheros clasificados.")

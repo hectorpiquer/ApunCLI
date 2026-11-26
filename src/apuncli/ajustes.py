@@ -48,3 +48,31 @@ def modo_recordado() -> Optional[str]:
     """El modo elegido la última vez ('estudio' u 'organizador') si existe."""
     valor = leer_ajustes().get("modo")
     return valor if valor in ("estudio", "organizador") else None
+
+
+# ---------------------------------------------------------------------------
+# Registro de acciones: que el usuario siempre sepa qué tocó la herramienta
+# ---------------------------------------------------------------------------
+
+import time
+
+
+def registrar(accion: str, detalle: str, resultado: str = "hecho") -> None:
+    """Añade una línea a ~/.apuncli/acciones.log (nunca rompe la orden)."""
+    linea = f"{time.strftime('%Y-%m-%d %H:%M:%S')}\t{accion}\t{resultado}\t{detalle}\n"
+    try:
+        ruta = ruta_config().parent / "acciones.log"
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        with open(ruta, "a", encoding="utf-8") as archivo:
+            archivo.write(linea)
+    except OSError:
+        pass                                   # sin disco de registro: seguimos
+
+
+def ver_registro(cuantas: int = 20):
+    """Las últimas N líneas del registro [(línea, …)], o lista vacía."""
+    ruta = ruta_config().parent / "acciones.log"
+    if not ruta.is_file():
+        return []
+    lineas = ruta.read_text(encoding="utf-8").splitlines()
+    return lineas[-cuantas:]

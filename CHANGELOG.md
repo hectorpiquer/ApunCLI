@@ -2,6 +2,31 @@
 
 Formato *Keep a Changelog*; versiones según *Semantic Versioning*.
 
+## [1.0.7] · 2026-11-26
+
+### Añadido
+- **Registro de acciones**: toda acción queda anotada (fecha, qué, dónde) en
+  `~/.apuncli/acciones.log` y se consulta con `apuncli registro` o la opción
+  📜 del menú organizador. Nunca rompe la orden si el log no se puede escribir.
+- Orden `apuncli registro` (últimas N acciones).
+
+### Arreglado
+- **Enlaces simbólicos**: los duplicados/temporales/ordenar ya no los siguen
+  ni los borran (un enlace apunta fuera: se omite, se informa, y el destino
+  se resuelve dentro de la carpeta pedida).
+- **Rutas imposibles**: `~nombre-raro` ya no revienta (expansión protegida),
+  los ficheros de sistema sin permiso (sockets de /run) no rompen el listado,
+  `/proc`, `/sys`, `/dev` y montajes virtuales se ignoran al medir espacio,
+  y una carpeta ilegible da un error humano en lugar de traceback.
+- **IA**: si el modelo responde basura multilínea se elige la línea plausible;
+  respuestas vacías o sin nombre dan error humano y el fichero no se toca.
+- **Acciones**: si la carpeta de origen no existe, error directo ANTES de
+  preguntar `¿Continuar?`.
+
+### Cambiado
+- `crear`/`borrar`/`limpiar`/`respaldo` también dejan rastro en el registro.
+- 5 pruebas nuevas de ataque (enlaces, rutas, montajes, IA basura): 144 pytest.
+
 ## [1.0.6] · 2026-11-26
 
 ### Añadido

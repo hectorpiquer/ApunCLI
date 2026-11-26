@@ -15,6 +15,22 @@ from . import organizador as organizador_mod
 from .errores import AccionNoValida, ApuncliError, ConfigError, FalloEjecucion, SinRedError
 
 
+def _ruta_de(texto) -> Path:
+    """Path() con ~ expandido vía os.path (nunca revienta con '~raros')."""
+    texto = (str(texto) or "").strip() or "."
+    if texto.startswith("~"):
+        try:
+            texto = os.path.expanduser(texto)
+        except RuntimeError:
+            pass
+    return Path(texto)
+
+
+def registrar(accion: str, detalle: str, resultado: str = "hecho") -> None:
+    from . import ajustes
+    ajustes.registrar(accion, detalle, resultado)
+
+
 # ---------------------------------------------------------------------------
 # Crear
 # ---------------------------------------------------------------------------
@@ -40,6 +56,7 @@ def cmd_crear(conexion, titulo: str, contenido: Optional[str], asignatura: str,
 
     apunte_id = db.crear_apunte(conexion, titulo.strip(), cuerpo, asignatura.strip(), etiquetas)
     _adjuntar_detectados(conexion, apunte_id, cuerpo)
+    registrar("crear", f"apunte {apunte_id}: {titulo.strip()[:40]}")
     apunte = db.obtener_apunte(conexion, apunte_id)
     ui.titulo_de_seccion(f"✔ Apunte creado (id {apunte_id})")
     _imprimir_ficha(apunte, db.etiquetas_del_apunte(conexion, apunte_id))
@@ -212,6 +229,7 @@ def cmd_borrar(conexion, apunte_id: int, si: bool) -> None:
             print("Cancelado.")
             return
     db.borrar_apunte(conexion, apunte_id)
+    registrar("borrar", f"apunte {apunte_id}: {apunte['titulo'][:40]}")
     print(f"✔ Apunte [{apunte_id}] borrado.")
 
 
@@ -234,6 +252,7 @@ def cmd_limpiar(conexion, asignatura: Optional[str],
             return
     for apunte in apuntes:
         db.borrar_apunte(conexion, apunte["id"])
+    registrar("limpiar", f"{len(apuntes)} apuntes")
     print(f"✔ {len(apuntes)} apuntes borrados.")
 
 
@@ -395,7 +414,7 @@ def cmd_recurso(conexion, accion: str, apunte_id: Optional[int],
         if apunte_id is None or not url:
             raise ApuncliError("Uso: apuncli recurso anadir <apunte> <url-o-fichero> [--nombre 'X']")
         _apunte_obligatorio(conexion, apunte_id)
-        ruta = os.path.abspath(os.path.expanduser(url)) if not recursos_mod.es_url(url) else url
+        ruta = os.path.abspath(os.path.expanduser(url)) if not recursos_mod.es_url(url) else url  # os.path: seguro
         if not recursos_mod.es_url(url) and not os.path.exists(ruta):
             raise ApuncliError(f"El fichero no existe: {ruta}. "
                                "Un recurso debe existir cuando se añade (o usa una URL).")
@@ -609,6 +628,7 @@ def cmd_hoy(conexion) -> None:
 def cmd_respaldo(conexion, sub: str, ruta_fichero: Optional[str]) -> None:
     if sub == "hacer":
         ruta = db.respaldo()
+        registrar("respaldo", str(ruta))
         print(f"✔ Copia de seguridad hecha: {ruta}")
     elif sub == "listar":
         respaldos = db.lista_de_respaldos()
@@ -681,7 +701,7 @@ def cmd_completar() -> None:
 # ---------------------------------------------------------------------------
 
 def _cargar_config(ruta: Optional[str]) -> config_mod.Configuracion:
-    donde = Path(ruta).expanduser() if ruta else Path("acciones.json")
+    donde = organizador_mod._ruta_de(ruta) if ruta else Path("acciones.json")
     return config_mod.Configuracion.cargar(donde)
 
 
@@ -737,18 +757,18 @@ def cmd_ejecutar(conexion, config: config_mod.Configuracion, nombre: str,
             if not carpeta:
                 raise ApuncliError("renombrar-ia necesita el fichero: "
                                    "apuncli ejecutar renombrar-ia <fichero>")
-            organizador_menu.renombrar_ia(Path(carpeta).expanduser())
+            organizador_menu.renombrar_ia(organizador_mod._ruta_de(carpeta))
         else:
             organizador_menu.clasificar_ia(
-                Path(carpeta).expanduser() if carpeta else None)
+                organizador_mod._ruta_de(carpeta) if carpeta else None)
         return
     if accion.tipo in ("temporales", "ordenar-descargas", "espacio"):
-        cmd_organizar(accion.tipo, Path(carpeta).expanduser() if carpeta
+        cmd_organizar(accion.tipo, _ruta_de(carpeta) if carpeta
                       else Path.cwd(), borrar=simular is False and si,
                       dias=30, simular=simular, categorias=None)
         return
 
-    ruta = Path(carpeta).expanduser() if carpeta else (accion.origen or Path.cwd())
+    ruta = organizador_mod._ruta_de(carpeta) if carpeta else (accion.origen or Path.cwd())
     motor = motor_mod.Motor()
     if accion.confirmar and not simular and not si:
         if not ui.confirmar(f"La acción '{accion.nombre}' puede modificar o borrar "
@@ -885,13 +905,19 @@ def _apunte_obligatorio(conexion, apunte_id: int):
 # Organizador: comandos CLI espejo del modo organizador
 # ---------------------------------------------------------------------------
 
+
 def cmd_organizar(sub: str, carpeta: Path, borrar: bool = False,
                   dias: int = 30, simular: bool = False,
                   categorias: Optional[List[str]] = None,
                   como_json: bool = False) -> None:
-    carpeta = Path(carpeta).expanduser()
-    if not carpeta.is_dir():
+    carpeta = organizador_mod._ruta_de(str(carpeta))
+    if str(carpeta) in ("", ".") and sub in ("espacio", "duplicados", "temporales"):
+        carpeta = Path.cwd()
+    carpeta = carpeta.resolve()
+    if not carpeta.exists():
         raise ApuncliError(f"No existe la carpeta: {carpeta}")
+    if not carpeta.is_dir():
+        raise ApuncliError(f"'{carpeta.name}' es un fichero, no una carpeta.")
     if sub == "espacio":
         datos = [(str(p), n) for p, n in organizador_mod.uso_espacio(carpeta, 2)]
         if como_json:
@@ -939,6 +965,7 @@ def cmd_organizar(sub: str, carpeta: Path, borrar: bool = False,
                     v.unlink(); total += 1
                 except OSError:
                     continue
+            registrar("borrar-temporales", f"{total} ficheros en {carpeta}")
             print(f"✔ {total} temporales borrados.")
         else:
             if not ui.confirmar(f"¿Borrar los {len(viejos)} temporales?"):
@@ -949,15 +976,20 @@ def cmd_organizar(sub: str, carpeta: Path, borrar: bool = False,
                     v.unlink(); total += 1
                 except OSError:
                     continue
+            registrar("borrar-temporales", f"{total} ficheros en {carpeta}")
             print(f"✔ {total} temporales borrados.")
         return
     if sub == "ordenar-descargas":
-        plan = organizador_mod.plan_ordenar(carpeta, categorias)
+        omitidos: List[str] = []
+        plan = organizador_mod.plan_ordenar(carpeta, categorias, omitidos=omitidos)
         if como_json:
             print(json.dumps([{"origen": str(o), "destino": str(d)}
                               for o, d in plan], ensure_ascii=False, indent=2))
             return
         print(f"Plan para {carpeta.name}:\n{organizador_mod.informe_plan(plan[:30])}")
+        if omitidos:
+            print(ui.tenue("  omitidos (no se pudieron leer o son enlaces): "
+                           + ", ".join(omitidos)))
         if simular:
             print(ui.tenue(f"  [simulación] {len(plan)} ficheros se moverían."))
         else:
@@ -976,15 +1008,21 @@ def cmd_organizar(sub: str, carpeta: Path, borrar: bool = False,
 
 def cmd_crear_doc_ruta(ruta_fichero: str, tipo: str = "md") -> None:
     """Crea un documento con ruta completa: ~/Documentos/tema-4.md"""
-    ruta = Path(ruta_fichero).expanduser()
+    ruta = _ruta_de(ruta_fichero)
     tipo = tipo or (ruta.suffix.lstrip(".") or "md")
     destino = organizador_mod.crear_documento(ruta.parent, ruta.stem, tipo)
     print(f"✔ Creado: {destino}")
 
 
 def cmd_abrir_fichero(ruta_fichero: str) -> None:
-    ruta = Path(ruta_fichero).expanduser()
+    ruta = _ruta_de(ruta_fichero)
     if not ruta.exists():
         raise ApuncliError(f"No existe: {ruta}")
-    organizador_mod.abrir(ruta)
+    try:
+        organizador_mod.abrir(ruta)
+    except FileNotFoundError as error:
+        raise ApuncliError(str(error))
+    except OSError as error:
+        raise ApuncliError(f"No se pudo abrir {ruta.name}: {error}")
+    registrar("abrir", str(ruta))
     print(f"✔ Abierto: {ruta.name}")
