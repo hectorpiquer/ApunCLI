@@ -128,3 +128,14 @@ def test_ia_con_proveedor_falso_funciona_desde_la_orden(escribir_config, monkeyp
     assert codigo == 0
     assert "resumen de pega" in texto
     assert falso.preguntas  # el documento viajó al modelo
+
+
+def test_modo_forzado_sin_config_aceptado():
+    """--modo se parsea sin tocar el flujo de comandos normales."""
+    codigo, texto = ejecutar("--modo", "organizador", "version")
+    assert codigo == 0 and "apuncli" in texto
+
+
+def test_version_en_ayuda():
+    codigo, texto = ejecutar("--help")
+    assert codigo == 0 and "version" in texto
