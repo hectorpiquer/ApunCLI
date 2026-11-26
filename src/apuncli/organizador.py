@@ -174,7 +174,11 @@ def borrar_menos_el_ancien(grupo: List[Path]) -> List[str]:
 # ---------------------------------------------------------------------------
 
 def uso_espacio(carpeta: Path, niveles: int = 2) -> List[Tuple[Path, int]]:
-    """Tamaño (bytes) de cada subcarpeta hasta N niveles, ordenado de mayor."""
+    """Tamaño (bytes) de cada subcarpeta hasta N niveles, ordenado de mayor.
+
+    Las subcarpetas ilegibles (permisos) se ignoran: informar de espacio no
+    debe romper por un directorio privado del sistema.
+    """
     resultados: List[Tuple[Path, int]] = []
 
     def tamano_arbol(r: Path) -> int:
@@ -192,14 +196,29 @@ def uso_espacio(carpeta: Path, niveles: int = 2) -> List[Tuple[Path, int]]:
             return 0
         return total
 
-    for hijo in listar_contenido(carpeta):
+    try:
+        hijos = listar_contenido(carpeta)
+    except ApuncliError:
+        return []
+    for hijo in hijos:
         if not hijo.is_dir():
             continue
-        resultados.append((hijo, tamano_arbol(hijo)))
+        try:
+            tam = tamano_arbol(hijo)
+        except OSError:
+            continue
+        resultados.append((hijo, tam))
         if niveles >= 2:
-            for nieto in listar_contenido(hijo):
+            try:
+                nietos = listar_contenido(hijo)
+            except ApuncliError:
+                nietos = []
+            for nieto in nietos:
                 if nieto.is_dir():
-                    resultados.append((nieto, tamano_arbol(nieto)))
+                    try:
+                        resultados.append((nieto, tamano_arbol(nieto)))
+                    except OSError:
+                        continue
     return sorted(resultados, key=lambda t: -t[1])
 
 
