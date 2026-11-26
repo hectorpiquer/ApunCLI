@@ -95,6 +95,9 @@ class ProveedorIA:
         return self.url + "/chat/completions"
 
     def preguntar(self, consigna: str, texto: str, largo_max: int = 16000) -> str:
+        if self.url.startswith("file://"):            # modo de prueba sin red
+            with open(self.url[len("file://"):], encoding="utf-8") as f:
+                return f.read().strip()
         if not self.modelo:
             raise SinRedError(
                 "No hay modelo de IA configurado (APUNCLI_IA_MODELO). "
@@ -170,7 +173,67 @@ _CONSINA_PREGUNTAS = (
     "en una línea. Sin preámbulos."
 )
 
+_CONSINA_RENOMBRAR = (
+    "Eres un asistente que pone nombres de fichero. A partir del contenido de "
+    "un documento, responde SOLO con un nombre de fichero en minúsculas, sin "
+    "tildes, sin espacios (usa guiones), sin acentos y de 4 palabras máximo, "
+    "sin extensión. Nada más."
+)
+
+_CONSINA_CLASIFICAR = (
+    "Eres un asistente de clasificación. Responde SOLO con una de estas "
+    "categorías, exacta: {categorias}. Si no encaja ninguna, responde "
+    "'sin-clasificar'. Sin explicaciones."
+)
+
+_CATEGORIAS_POR_DEFECTO = "apuntes,admin,trabajo,other"
 _SEP_PREGUNTA = "=>"
+
+
+def a_nombre_seguro(propuesta: str, sugerida: str = "") -> str:
+    """Sanea el nombre que propone el modelo: minúsculas, guiones, sin rutas.
+
+    La extensión final siempre es la del fichero original (sugerida): si el
+    modelo la añade ('informe.pdf'), se quita y se vuelve a poner normalizada
+    para que nunca salga duplicada ni se pierda. Vacío → 'sin-nombre'.
+    """
+    import unicodedata
+    extension = Path(sugerida).suffix.lower() if sugerida else ""
+    nombre = unicodedata.normalize("NFKD", (propuesta or "").strip().lower())
+    nombre = "".join(c for c in nombre if not unicodedata.combining(c))
+    if extension and nombre.endswith(extension):
+        nombre = nombre[: -len(extension)]              # quita la extensión que añada
+    nombre = re.sub(r"[^a-z0-9]+", "-", nombre)         # todo lo demás → guiones
+    nombre = re.sub(r"-+", "-", nombre).strip("-")      # sin -- ni extremos
+    if not nombre:
+        nombre = "sin-nombre"
+    return (nombre + extension)[:60]
+
+
+def categorias_configuradas() -> list:
+    from . import ajustes
+    crudo = (os.environ.get("APUNCLI_IA_CATEGORIAS")
+             or ajustes.leer_ajustes().get("categorias") or _CATEGORIAS_POR_DEFECTO)
+    return [c.strip() for c in crudo.split(",") if c.strip()]
+
+
+def accion_renombrar(texto: str, nombre_actual: str,
+                     proveedor: Optional[ProveedorIA] = None) -> str:
+    proveedor = proveedor or ProveedorIA()
+    consigna = _CONSINA_RENOMBRAR
+    respuesta = proveedor.preguntar(consigna,
+                                    f"nombre actual: {nombre_actual}\n\n{texto}")
+    primera = respuesta.strip().splitlines()[0] if respuesta.strip() else ""
+    return primera
+
+
+def accion_clasificar(texto: str, categorias: list,
+                      proveedor: Optional[ProveedorIA] = None) -> str:
+    proveedor = proveedor or ProveedorIA()
+    consigna = _CONSINA_CLASIFICAR.replace("{categorias}", ", ".join(categorias))
+    respuesta = proveedor.preguntar(consigna, texto)
+    eleccion = respuesta.strip().strip(".- ").lower()
+    return eleccion if eleccion in categorias else "sin-clasificar"
 
 
 def accion_resumir(texto: str, proveedor: Optional[ProveedorIA] = None) -> str:
