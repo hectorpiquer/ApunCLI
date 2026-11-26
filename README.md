@@ -91,7 +91,7 @@ Y ya está, desde **cualquier carpeta**:
 
 ```bash
 apuncli --help
-apuncli version      # debe decir: apuncli 1.0.4 (o la que tengas)
+apuncli version      # debe decir: apuncli 1.0.6 (o la que tengas)
 ```
 
 > **Sin dependencias externas.** Todo el proyecto usa módulos estándar de
@@ -131,6 +131,16 @@ Escribe `apuncli` a secas y se abre un **menú interactivo**: navega con las
 flechas ↑/↓ (o `j`/`k`, inicio/fin con `g`/`G`), confirma con Enter y cancela
 con `q`/`Esc`/`Ctrl+C`. Desde él puedes hacer todo lo importante sin recordar
 ningún comando.
+
+Al arrancar, apuncli pregunta el **modo** (y recuerda tu elección):
+
+| Modo | Para qué |
+| ---- | -------- |
+| 📚 **Estudio** | apuntes: buscar, repasar con intervalos, test, temarios, respaldos. |
+| 🗂️ **Organizador** | ficheros: explorar, crear documentos, ordenar descargas, duplicados, temporales, renombrar/clasificar con IA. |
+
+`--modo estudio` / `--modo organizador` / `--modo preguntar` lo fuerzan sin
+preguntar. La elección recordada vive en `~/.apuncli/config.json`.
 
 ```
 $ apuncli
@@ -196,11 +206,14 @@ los comandos `ver`, `editar`, `borrar`, `abrir` y `exportar`.
 | `validar`          | Comprobar `acciones.json` (código 3 si falla)     | `apuncli validar`                    |
 | `ejecutar`         | Ejecutar una acción (`--simular`, `--si`, `--json`) | `apuncli ejecutar ordenar-descargas ~/Descargas --simular` |
 | `comprobar-ia`     | Probar la conexión con el modelo de IA            | `apuncli comprobar-ia`               |
+| `organizar`        | El modo organizador por orden (espacio, duplicados, temporales, ordenar-descargas) | `apuncli organizar espacio ~` |
+| `crear-doc`        | Crear un documento desde plantilla                | `apuncli crear-doc ~/Documentos/tema-4.md` |
+| `abrir-qui`        | Abrir un fichero/carpeta con su app               | `apuncli abrir-qui ~/Documentos`     |
 
 Todos los comandos aceptan `--help` para ver sus opciones, por ejemplo
 `apuncli crear --help`. La salida **para máquinas** (`--json`) está disponible
-en `listar`, `ver`, `buscar`, `stats`, `acciones`, `ejecutar` y
-`comprobar-ia`: color fuera, JSON dentro, y `jq` puede con ella.
+en `listar`, `ver`, `buscar`, `stats`, `acciones`, `ejecutar`,
+`validar`, `comprobar-ia` y `organizar`: color fuera, JSON dentro, y `jq` puede con ella.
 
 ### `crear` — las cuatro formas de dar contenido
 
@@ -327,6 +340,29 @@ $ apuncli comprobar-ia            # (sin el centro cerca)
   detalle:   No hay conexión con el proveedor de IA… Sin red la CLI sigue
              funcionando con las acciones que no necesitan IA.
 ```
+
+## Modo organizador (ficheros)
+
+El "otro" apuncli, con las mismas reglas de seguridad (simular → confirmar):
+
+```bash
+apuncli                                              # elige modo → Organizador
+# 🗂️ Explorar una carpeta     → flechas: entra/sale, Enter abre con su app
+# 📄 Crear un documento nuevo → md, txt, py, sh, sql, html (plantillas)
+# 📥 Ordenar descargas        → documentos/imágenes/comprimidos/instaladores/código
+#                              enseña el plan ANTES de mover
+# 👯 Buscar duplicados        → borra todos menos el más antiguo (hash SHA-256)
+# 🧮 Uso de espacio           → subcarpetas ordenadas por tamaño
+# 🧹 Temporales viejos        → .tmp/.bak/.log/.old con más de 30 días
+# 🪄/🗃️ Con IA                → renombrar-ia (propone nombre por contenido) y
+#                              clasificar-ia (sin-clasificar si no encaja)
+```
+
+Sin menú: `apuncli organizar espacio ~`, `apuncli organizar duplicados ~
+--borrar`, `apuncli crear-doc ~/Documentos/tema-4.md`, `apuncli abrir-qui
+~/Imágenes`. `--simular` y `--json` donde aplican. Las acciones del
+`acciones.json` tienen ahora tipos nuevos: `ordenar-descargas`, `temporales`,
+`espacio`, `renombrar-ia`, `clasificar-ia`.
 
 ## Ejemplos de uso real
 
@@ -534,6 +570,9 @@ apuncli/
 │   ├── db.py                # capa de datos SQLite (tablas, CRUD, búsqueda)
 │   ├── config.py            # esquema + validador estricto de acciones.json
 │   ├── motor.py             # ejecuta acciones sobre ficheros (simular, colisiones…)
+│   ├── organizador.py       # explorador, duplicados, espacio, plantillas, ordenar
+│   ├── organizador_menu.py  # el menú Organizador (la TUI del otro modo)
+│   ├── ajustes.py          # configuración local (~/.apuncli/config.json)
 │   ├── ai.py                # proveedor IA (OpenAI-compatible) + acciones IA
 │   ├── formato.py           # Markdown <-> apunte, preguntas de test
 │   ├── recursos.py          # detectar/abrir URLs y ficheros adjuntos
@@ -549,6 +588,7 @@ apuncli/
     ├── test_acciones.py     # pytest: config/motor/validador/IA (casos feos)
     ├── test_cli_exterior.py # pytest: la CLI por fuera (códigos 0-4)
     ├── test_auditoria.py    # pytest: auditoría v1.0.2 (json, rutas, espaciado)
+    ├── test_organizador.py  # pytest: modo organizador (v1.0.6)
     └── conftest.py          # la caja de arena de pytest
 ```
 
@@ -604,7 +644,7 @@ prueba: las pruebas no tocan nunca tus apuntes reales.
 
 ```bash
 python3 -m unittest discover -s tests   # 62 tests (solo stdlib)
-python3 -m pytest tests/                # 110 tests (necesita pytest)
+python3 -m pytest tests/                # 139 tests (necesita pytest)
 ```
 
 La fixture `aislado` de [tests/conftest.py](tests/conftest.py) (autouse) es la

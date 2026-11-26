@@ -2,6 +2,31 @@
 
 Formato *Keep a Changelog*; versiones según *Semantic Versioning*.
 
+## [1.0.6] · 2026-11-26
+
+### Añadido
+- **Dos modos**: al lanzar `apuncli` sin args ahora eliges **Estudio** (lo de
+  siempre) u **Organizador** (tus ficheros). La elección se recuerda en
+  `~/.apuncli/config.json`; `--modo estudio|organizador|preguntar` la fuerza.
+- **Modo organizador** (`organizador.py` + `organizador_menu.py`): explorador
+  con flechas, crear documentos desde plantilla (md/txt/py/sh/sql/html),
+  ordenar descargas guiado (documentos/imágenes/comprimidos/instaladores/
+  código), duplicados (borra todos menos el más antiguo, verificado por
+  SHA-256), temporales viejos y uso de espacio por subcarpeta.
+- **Renombrar con IA y clasificar con IA**: `renombrar-ia` (propone nombre a
+  partir del contenido, saneado: minúsculas, guiones, sin rutas, extensión
+  nunca duplicada) y `clasificar-ia` (categorías configurables, lo raro va a
+  `sin-clasificar`). Sin red: aviso y el resto sigue.
+- CLI espejo sin menú: `apuncli organizar {espacio|duplicados|temporales|
+  ordenar-descargas}` (`--borrar/--simular/--dias/--json`), `crear-doc` y
+  `abrir-qui`. Nuevos tipos de acción: `ordenar-descargas`, `temporales`,
+  `espacio`, `renombrar-ia`, `clasificar-ia`.
+- 26 pruebas nuevas (139 pytest en total): organizador puro, `a_nombre_seguro`
+  con parametrize, ajustes recordados y la CLI espejo.
+
+### Cambiado
+- `comprobar-ia` entiende `file://` (pruebas sin red).
+
 ## [1.0.5] · 2026-11-24
 
 ### Añadido
