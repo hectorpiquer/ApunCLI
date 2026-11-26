@@ -618,7 +618,7 @@ bruto: saca el `mkdir` del `if` en `motor.py` y verás cómo se ponen en rojo
 las dos pruebas de `--simular` (paso 3 de la Sesión 4; contado en
 [docs/prompts.md](docs/prompts.md)). Todo se ejecuta en **GitHub Actions en
 ubuntu, windows y macos** en cada push
-([.github/workflows/tests.yml](.github/workflows/tests.yml)).
+([.github/workflows/pruebas.yml](.github/workflows/pruebas.yml)).
 
 ## Licencia
 

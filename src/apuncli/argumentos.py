@@ -238,6 +238,7 @@ def crear_parser() -> argparse.ArgumentParser:
                        description="Valida el fichero de configuración y dice "
                                    "exactamente qué campo falla. Sale con código 3 "
                                    "si el JSON no es válido.")
+    p.add_argument("--json", action="store_true", help="salida en JSON")
 
     p = sub.add_parser("ejecutar", help="ejecutar una acción del fichero de acciones",
                        description="Ejecuta la acción NOMBRE sobre CARPETA (o el origen "
@@ -378,7 +379,7 @@ def _despachar(conexion, args, parser) -> None:
     elif comando == "acciones":
         comandos.cmd_acciones(comandos._cargar_config(args.config), args.json)
     elif comando == "validar":
-        return comandos.cmd_validar(args.config)
+        return comandos.cmd_validar(args.config, args.json)
     elif comando == "ejecutar":
         config = comandos._cargar_config(args.config)
         comandos.cmd_ejecutar(conexion, config, args.nombre, args.carpeta,

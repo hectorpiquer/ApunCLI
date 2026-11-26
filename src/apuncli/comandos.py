@@ -698,9 +698,16 @@ def cmd_acciones(config: config_mod.Configuracion, como_json: bool = False) -> N
     print(ui.tenue("\nEjecuta una: apuncli ejecutar <nombre> [carpeta|apunte] --simular"))
 
 
-def cmd_validar(ruta: Optional[str]) -> int:
+def cmd_validar(ruta: Optional[str], como_json: bool = False) -> int:
     """Devuelve 0 si todo vale; lanza ConfigError con TODOS los fallos."""
     config = _cargar_config(ruta)
+    if como_json:
+        print(json.dumps({"valido": True, "config": str(config.ruta),
+                          "version": config.version,
+                          "acciones": [{"nombre": a.nombre, "tipo": a.tipo}
+                                       for a in config.acciones]},
+                         ensure_ascii=False, indent=2))
+        return 0
     print(f"✔ {config.ruta} es válido: {len(config.acciones)} acción(es), "
           f"esquema versión {config.version}.")
     for accion in config.acciones:
