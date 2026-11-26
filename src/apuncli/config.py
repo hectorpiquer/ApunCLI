@@ -17,7 +17,9 @@ _NOMBRE_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 TIPOS_VALIDOS = {
     "mover", "renombrar", "copiar", "borrar", "duplicados",
-    "resumir-ia", "generar-preguntas-ia", "generar-temario",
+    "temporales", "ordenar-descargas", "espacio",
+    "resumir-ia", "generar-preguntas-ia", "renombrar-ia", "clasificar-ia",
+    "generar-temario",
 }
 # tipos que modifican ficheros/apuntes y por tanto piden simulación o confirmación
 TIPOS_DESTRUCTIVOS = {"mover", "renombrar", "copiar", "borrar"}

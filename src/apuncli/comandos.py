@@ -11,6 +11,7 @@ from typing import List, Optional
 
 from . import ai, config as config_mod, db, formato, motor as motor_mod
 from . import recursos as recursos_mod, temario, testmotor, ui
+from . import organizador as organizador_mod
 from .errores import AccionNoValida, ApuncliError, ConfigError, FalloEjecucion, SinRedError
 
 
@@ -730,6 +731,22 @@ def cmd_ejecutar(conexion, config: config_mod.Configuracion, nombre: str,
         texto = temario.generar_temario(conexion, asignatura=carpeta or None)
         print(texto)
         return
+    if accion.tipo in ("renombrar-ia", "clasificar-ia"):
+        from . import organizador_menu
+        if accion.tipo == "renombrar-ia":
+            if not carpeta:
+                raise ApuncliError("renombrar-ia necesita el fichero: "
+                                   "apuncli ejecutar renombrar-ia <fichero>")
+            organizador_menu.renombrar_ia(Path(carpeta).expanduser())
+        else:
+            organizador_menu.clasificar_ia(
+                Path(carpeta).expanduser() if carpeta else None)
+        return
+    if accion.tipo in ("temporales", "ordenar-descargas", "espacio"):
+        cmd_organizar(accion.tipo, Path(carpeta).expanduser() if carpeta
+                      else Path.cwd(), borrar=simular is False and si,
+                      dias=30, simular=simular, categorias=None)
+        return
 
     ruta = Path(carpeta).expanduser() if carpeta else (accion.origen or Path.cwd())
     motor = motor_mod.Motor()
@@ -755,7 +772,6 @@ def cmd_ejecutar(conexion, config: config_mod.Configuracion, nombre: str,
 
 def _ejecutar_accion_ia(conexion, accion, carpeta: Optional[str],
                         simular: bool, si: bool) -> None:
-    """resumir-ia / generar-preguntas-ia: el apunte se indica con el id (CARPETA)."""
     proveedor = ai.ProveedorIA()
     if simular:
         print(f"[SIMULACIÓN] '{accion.nombre}' enviaría el apunte elegido al modelo "
@@ -863,3 +879,112 @@ def _apunte_obligatorio(conexion, apunte_id: int):
         raise ApuncliError(f"No existe ningún apunte con id {apunte_id}. "
                            "Lista los apuntes con: apuncli listar")
     return apunte
+
+
+# ---------------------------------------------------------------------------
+# Organizador: comandos CLI espejo del modo organizador
+# ---------------------------------------------------------------------------
+
+def cmd_organizar(sub: str, carpeta: Path, borrar: bool = False,
+                  dias: int = 30, simular: bool = False,
+                  categorias: Optional[List[str]] = None,
+                  como_json: bool = False) -> None:
+    carpeta = Path(carpeta).expanduser()
+    if not carpeta.is_dir():
+        raise ApuncliError(f"No existe la carpeta: {carpeta}")
+    if sub == "espacio":
+        datos = [(str(p), n) for p, n in organizador_mod.uso_espacio(carpeta, 2)]
+        if como_json:
+            print(json.dumps(datos, ensure_ascii=False, indent=2))
+            return
+        ui.titulo_de_seccion(f"Uso de espacio en {carpeta}")
+        for ruta, bytes_ in datos[:20]:
+            print(f"  {organizador_mod.tamano_legible(bytes_):>10}  {ruta}")
+        return
+    if sub == "duplicados":
+        grupos = organizador_mod.grupos_duplicados(carpeta)
+        if como_json:
+            print(json.dumps([{"hash": h, "ficheros": [str(f) for f in fs]}
+                              for h, fs in grupos], ensure_ascii=False, indent=2))
+            return
+        if not grupos:
+            print(f"Sin duplicados en {carpeta}")
+            return
+        for firma, grupo in grupos:
+            print(f"  {firma[:10]}…: " + ", ".join(g.name for g in grupo))
+        if borrar and not simular:
+            total = 0
+            for _, grupo in grupos:
+                total += len(organizador_mod.borrar_menos_el_ancien(grupo))
+            print(f"✔ {total} duplicados borrados (se conserva el más antiguo).")
+        elif not simular:
+            print(ui.tenue("  (usa --borrar para eliminarlos, conservando el más antiguo)"))
+        return
+    if sub == "temporales":
+        viejos = organizador_mod.temporales_viejos(carpeta, dias)
+        if como_json:
+            print(json.dumps([str(v) for v in viejos], ensure_ascii=False, indent=2))
+            return
+        if not viejos:
+            print(f"Sin temporales de más de {dias} días en {carpeta}")
+            return
+        for v in viejos:
+            print(f"  {v.name}  ({organizador_mod.tamano_legible(v.stat().st_size)})")
+        if simular:
+            print(ui.tenue(f"  [simulación] se borrarían {len(viejos)} ficheros."))
+        elif borrar:
+            total = 0
+            for v in viejos:
+                try:
+                    v.unlink(); total += 1
+                except OSError:
+                    continue
+            print(f"✔ {total} temporales borrados.")
+        else:
+            if not ui.confirmar(f"¿Borrar los {len(viejos)} temporales?"):
+                print("Cancelado."); return
+            total = 0
+            for v in viejos:
+                try:
+                    v.unlink(); total += 1
+                except OSError:
+                    continue
+            print(f"✔ {total} temporales borrados.")
+        return
+    if sub == "ordenar-descargas":
+        plan = organizador_mod.plan_ordenar(carpeta, categorias)
+        if como_json:
+            print(json.dumps([{"origen": str(o), "destino": str(d)}
+                              for o, d in plan], ensure_ascii=False, indent=2))
+            return
+        print(f"Plan para {carpeta.name}:\n{organizador_mod.informe_plan(plan[:30])}")
+        if simular:
+            print(ui.tenue(f"  [simulación] {len(plan)} ficheros se moverían."))
+        else:
+            if not ui.confirmar(f"¿Mover {len(plan)} ficheros?"):
+                print("Cancelado."); return
+            print(f"✔ {organizador_mod.ejecutar_plan_ordenar(plan)} ficheros movidos.")
+        return
+    if sub == "crear-doc":
+        nombre = categorias[0] if categorias else "documento"
+        tipo = categorias[1] if categorias and len(categorias) > 1 else "md"
+        destino = organizador_mod.crear_documento(carpeta, nombre, tipo)
+        print(f"✔ Creado: {destino}")
+        return
+    raise ApuncliError(f"Subcomando organizador desconocido: {sub}")
+
+
+def cmd_crear_doc_ruta(ruta_fichero: str, tipo: str = "md") -> None:
+    """Crea un documento con ruta completa: ~/Documentos/tema-4.md"""
+    ruta = Path(ruta_fichero).expanduser()
+    tipo = tipo or (ruta.suffix.lstrip(".") or "md")
+    destino = organizador_mod.crear_documento(ruta.parent, ruta.stem, tipo)
+    print(f"✔ Creado: {destino}")
+
+
+def cmd_abrir_fichero(ruta_fichero: str) -> None:
+    ruta = Path(ruta_fichero).expanduser()
+    if not ruta.exists():
+        raise ApuncliError(f"No existe: {ruta}")
+    organizador_mod.abrir(ruta)
+    print(f"✔ Abierto: {ruta.name}")
