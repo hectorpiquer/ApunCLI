@@ -2,6 +2,17 @@
 
 Formato *Keep a Changelog*; versiones según *Semantic Versioning*.
 
+## [1.0.5] · 2026-11-24
+
+### Añadido
+- `--json` en `validar` (el conjunto `--json` queda completo: listar, ver,
+  buscar, stats, acciones, ejecutar, comprobar-ia y validar).
+- Documento `docs/release.md`: el flujo exacto de release (rama → PR con
+  Actions en tres sistemas → etiqueta → release) y la promesa SemVer de la v1.0.
+
+### Cambiado
+- El workflow se llama `pruebas.yml` (como en el curso) en vez de `tests.yml`.
+
 ## [1.0.4] · 2026-11-23
 
 ### Añadido

@@ -282,3 +282,11 @@ def test_ejecutar_duplicados_por_consola(descargas, tmp_path, escribir_config):
     # el informe agrupa: "duplicados (hash…): a, b"
     assert "duplicados" in texto
     assert "factura.pdf" in texto and "copia de factura.pdf" in texto
+
+
+def test_validar_json(escribir_config):
+    ruta = escribir_config([BUENA])
+    codigo, texto = ejecutar("--config", str(ruta), "validar", "--json")
+    assert codigo == 0
+    datos = json.loads(texto)
+    assert datos["valido"] is True and datos["acciones"][0]["nombre"] == "ordenar"
