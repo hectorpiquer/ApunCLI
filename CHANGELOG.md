@@ -149,3 +149,4 @@ Historial del desarrollo del gestor de apuntes (ver `git log`): apuntes SQLite
 temarios Markdown, respaldos, TUI con flechas, demo y completado bash.
 
 [1.0.0]: https://github.com/hectorpiquer/ApunCLI/releases/tag/v1.0.0
+[1.0.6]: https://github.com/hectorpiquer/ApunCLI/releases/tag/v1.0.6
