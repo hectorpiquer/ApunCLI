@@ -1,6 +1,7 @@
 """Definición de los argumentos y el despacho de comandos de apuncli."""
 
 import argparse
+from pathlib import Path
 import sqlite3
 import sys
 
@@ -38,6 +39,9 @@ def crear_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"apuncli {__version__}")
     parser.add_argument("--config", metavar="RUTA",
                         help="otro fichero de acciones (por defecto ./acciones.json)")
+    parser.add_argument("--modo", choices=("estudio", "organizador", "preguntar"),
+                        metavar="{estudio,organizador,preguntar}",
+                        help="forzar el modo del menú interactivo (sin preguntar)")
     sub = parser.add_subparsers(dest="comando", metavar="COMANDO")
 
     # crear
@@ -258,6 +262,45 @@ def crear_parser() -> argparse.ArgumentParser:
                                    "todo lo demás.")
     p.add_argument("--json", action="store_true", help="salida en JSON")
 
+    # organizar: el modo organizador en modo orden (sin menú)
+    p = sub.add_parser("organizar", help="organizar ficheros (el otro modo, sin menú)",
+                       description="Espacio, duplicados, temporales, ordenar descargas… "
+                                   "Igual que el menú organizador pero por orden.")
+    sub_organizar = p.add_subparsers(dest="sub", metavar="SUB")
+    po = sub_organizar.add_parser("espacio", help="uso de espacio por subcarpeta")
+    po.add_argument("carpeta", nargs="?", default=".")
+    po.add_argument("--json", action="store_true")
+    po = sub_organizar.add_parser("duplicados", help="informe de duplicados (hash)")
+    po.add_argument("carpeta", nargs="?", default=".")
+    po.add_argument("--borrar", action="store_true",
+                    help="borra todos menos el más antiguo (con verificación hash)")
+    po.add_argument("--json", action="store_true")
+    po = sub_organizar.add_parser("temporales", help="temporales viejos para borrar")
+    po.add_argument("carpeta", nargs="?", default=".")
+    po.add_argument("--dias", type=int, default=30)
+    po.add_argument("--borrar", action="store_true", help="borra sin preguntar")
+    po.add_argument("--simular", action="store_true", help="lista lo que borraría")
+    po.add_argument("--json", action="store_true")
+    po = sub_organizar.add_parser("ordenar-descargas",
+                                  help="mover descargas a Documentos/Imágenes/…")
+    po.add_argument("carpeta", nargs="?", default="~/Descargas")
+    po.add_argument("--solo", help="solo una categoría: documentos, imágenes, "
+                                   "comprimidos, instaladores, código")
+    po.add_argument("--simular", action="store_true")
+    po.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("crear-doc", aliases=["nuevodoc"],
+                       help="crear un documento desde plantilla (md, txt, py, sh…)",
+                       description="Crea un documento nuevo con plantilla (nunca pisa "
+                                   "si existe: añade -1). Tipos: md, txt, py, sh, sql, html.")
+    p.add_argument("ruta", help="ruta completa, ej: ~/Documentos/tema-4.md")
+    p.add_argument("-t", "--tipo", default="", help="forzar tipo (por defecto la extensión)")
+
+    p = sub.add_parser("abrir-qui", help="abrir un fichero/carpeta con su app",
+                       description="Abre el fichero con la aplicación asociada "
+                                   "(xdg-open/open/startfile).")
+    p.add_argument("ruta", help="fichero o carpeta")
+
     return parser
 
 
@@ -283,7 +326,9 @@ def ejecutar(argv=None) -> int:
                 try:
                     with conexion:
                         from . import interfaz
-                        return interfaz.menu_principal(conexion)
+                        forzado = args.modo if getattr(args, "modo", "") in (
+                            "estudio", "organizador") else ""
+                        return interfaz.menu_principal(conexion, forzado)
                 finally:
                     sys.stdout.flush()
             parser.print_help()
@@ -386,5 +431,22 @@ def _despachar(conexion, args, parser) -> None:
                               args.simular, args.si, args.json)
     elif comando == "comprobar-ia":
         return comandos.cmd_comprobar_ia(args.json)
+    elif comando == "organizar":
+        sub = args.sub or "espacio"
+        categorias = [args.solo] if getattr(args, "solo", None) else None
+        if sub == "ordenar-descargas":
+            comandos.cmd_organizar(sub, Path(args.carpeta).expanduser(),
+                                   simular=args.simular, categorias=categorias,
+                                   como_json=args.json)
+        else:
+            comandos.cmd_organizar(sub, Path(args.carpeta).expanduser(),
+                                   borrar=getattr(args, "borrar", False),
+                                   dias=getattr(args, "dias", 30),
+                                   simular=getattr(args, "simular", False),
+                                   como_json=args.json)
+    elif comando in ("crear-doc", "nuevodoc"):
+        comandos.cmd_crear_doc_ruta(args.ruta, args.tipo)
+    elif comando == "abrir-qui":
+        comandos.cmd_abrir_fichero(args.ruta)
     else:
         parser.print_help()

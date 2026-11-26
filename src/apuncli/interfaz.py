@@ -1,6 +1,7 @@
 """Menú interactivo de apuncli (se abre al escribir 'apuncli' a secas).
 
-Usa solo la librería estándar: la navegación con flechas vive en ui.seleccionar().
+Dos modos: estudio (apuntes) y organizador (ficheros). El selector pregunta
+y recuerda la elección en ~/.apuncli/config.json.
 """
 
 import sys
@@ -8,6 +9,11 @@ import sys
 from . import comandos, db, formato, ui
 from .errores import ApuncliError
 from .ui import SeleccionCancelada
+
+OPCIONES_MODO = [
+    ("📚  Estudiar mis apuntes", "estudio"),
+    ("🗂️   Organizar mis ficheros", "organizador"),
+]
 
 ACCIONES = [
     ("📅  ¿Qué estudio hoy?", "hoy"),
@@ -33,17 +39,51 @@ class SalirDelMenu(Exception):
     """El usuario ha elegido la opción de salir del menú."""
 
 
-def menu_principal(conexion) -> int:
+def menu_principal(conexion, modo_forzado: str = "") -> int:
+    """Gate de modo: elige (y recuerda) entre estudio y organizador."""
+    from . import ajustes, organizador_menu
+    modo = modo_forzado if modo_forzado in ("estudio", "organizador") else None
+    if modo is None:
+        try:
+            print(ui.destacado("\n📚 apuncli — ¿qué quieres hacer?"))
+            indice = ui.seleccionar("Modo", [a for a, _ in OPCIONES_MODO])
+        except SeleccionCancelada:
+            print("\n¡Hasta la próxima!")
+            return 0
+        modo = OPCIONES_MODO[indice][1]
+        try:
+            ajustes.guardar_ajustes(modo=modo)
+        except ApuncliError:
+            pass                                   # sin config: no rompe el menú
+    while True:
+        if modo == "estudio":
+            resultado = menu_estudio(conexion)
+            if resultado == 2:                     # «volver al selector»
+                modo = None
+                continue
+            return resultado
+        else:
+            resultado = organizador_menu.menu_organizador()
+            if resultado == 2:
+                modo = None
+                continue
+            return resultado
+
+
+def menu_estudio(conexion) -> int:
     print(ui.destacado("\n📚 apuncli — menú de estudio"))
     print(ui.tenue("   (usa ↑/↓ y Enter; q para volver/salir)"))
 
     while True:
         try:
-            indice = ui.seleccionar("¿Qué quieres hacer?", [a for a, _ in ACCIONES])
+            indice = ui.seleccionar("¿Qué quieres hacer?",
+                                    [a for a, _ in ACCIONES]
+                                    + ["🔁  Cambiar de modo (organizador)"])
         except SeleccionCancelada:
             print("\n¡Hasta la próxima!")
             return 0
-
+        if indice == len(ACCIONES):
+            return 2
         accion = ACCIONES[indice][1]
         if accion == "salir":
             print("\n¡Hasta la próxima!")
